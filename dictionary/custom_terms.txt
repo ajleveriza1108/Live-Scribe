@@ -1,0 +1,6 @@
+# Add one important name or phrase per line.
+# Examples:
+# Pastor Juan Dela Cruz
+# Sampaguita Baptist Church
+# Barangay San Isidro
+# Project Lakbay

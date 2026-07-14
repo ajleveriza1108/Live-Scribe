@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "engines": [
+    {
+      "id": "faster-whisper",
+      "role": "core_asr",
+      "bundled_runtime": true,
+      "model_bundled": false,
+      "status": "active",
+      "purpose": "Default live and full-WAV English, Tagalog, and Taglish transcription"
+    },
+    {
+      "id": "numpy-stationary-noise-reducer",
+      "role": "core_audio_cleanup",
+      "bundled_runtime": true,
+      "model_bundled": true,
+      "status": "active",
+      "purpose": "Conservative steady fan, air-conditioner, and room-noise reduction"
+    },
+    {
+      "id": "deepfilternet",
+      "role": "optional_audio_enhancement_pack",
+      "bundled_runtime": false,
+      "model_bundled": false,
+      "status": "researched_optional",
+      "purpose": "Stronger neural speech enhancement for a future optional download"
+    },
+    {
+      "id": "qwen3-asr",
+      "role": "optional_accuracy_pack",
+      "bundled_runtime": false,
+      "model_bundled": false,
+      "status": "researched_optional",
+      "purpose": "Alternative multilingual final-pass ASR, including Filipino support"
+    },
+    {
+      "id": "whisper-cpp",
+      "role": "optional_compact_engine",
+      "bundled_runtime": false,
+      "model_bundled": false,
+      "status": "researched_optional",
+      "purpose": "Possible quantized low-storage edition for future releases"
+    }
+  ]
+}

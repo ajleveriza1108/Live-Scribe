@@ -1,0 +1,11 @@
+LIVE SCRIBE APPLICATION CODE LICENSE
+Copyright (c) 2026. All rights reserved.
+
+The original application code in this package is licensed only to the purchaser for
+personal or internal business use. Redistribution, resale, sublicensing, public
+re-uploading, sharing of product packages, or claiming the code as another product is
+not permitted without written authorization from the copyright holder.
+
+This license does not replace or restrict the separate licenses that apply to bundled
+third-party open-source software. Those components remain governed by their respective
+licenses and notices.

@@ -1,0 +1,90 @@
+LIVE SCRIBE v0.3.2 — BUYER QUICK GUIDE
+================================================
+
+WHAT IT DOES
+------------
+Live Scribe listens to a microphone and creates English, Tagalog/
+Filipino, or Taglish text. It saves the original audio as WAV while the
+speaker talks. After Stop, it can clean steady background noise, transcribe
+the complete WAV again, compare both transcription passes, and prepare a
+formatted Word report with review comments.
+
+FIRST START AND MODEL DOWNLOAD
+------------------------------
+1. Extract the complete ZIP to Documents, Desktop, or a writable portable SSD.
+2. Keep every folder together.
+3. Open the launcher for your operating system:
+   Windows: Start Live Scribe.bat
+   macOS:   Start Live Scribe.command
+   Linux:   start_linux.sh
+4. Permit microphone access when the operating system asks.
+5. The app opens without downloading a model.
+6. Select a speech model inside the app. Start with small.
+7. Click Download Selected Model.
+8. Keep the app open and connected until the one-time download finishes.
+9. Start Listening becomes available after the model is ready.
+10. Later sessions reuse that downloaded model offline.
+
+The portable app dependencies are already included. A model is downloaded only
+when you select it and press the download button.
+
+CURRENT LANGUAGE SUPPORT
+------------------------
+This edition is optimized for English, Tagalog/Filipino, and Taglish. More
+languages are planned for future versions, but are not enabled in this edition.
+
+NORMAL SESSION
+--------------
+1. The app automatically tries the system default microphone.
+2. Use Detect if the microphone list changes.
+3. Press Start Listening.
+4. Speak naturally. Rough text appears after short pauses.
+5. Press Stop when the speaker is finished.
+6. Keep the app open while it checks the complete WAV.
+7. Review the Final Transcript and Review Comments tabs.
+8. Save DOCX, TXT, or SRT.
+
+DIFFICULT WORDS AND NAMES
+-------------------------
+Open Vocabulary & Pronunciation inside the app. Enter:
+- the correct written spelling; and
+- one or more ways the word may sound or be mistakenly transcribed.
+
+Example:
+Correct spelling: Project Lakbay
+Sounds like: project lock buy, project lak bai
+
+The app uses these forms as recognition hints. During the final WAV pass, an
+exact matched alias may be corrected to the written form and listed in Review
+Comments. Use distinctive aliases and avoid very short common words.
+
+IMPORTANT FILES
+---------------
+recordings/  Original and optional enhanced WAV files.
+exports/     Saved Word, text, and subtitle files.
+models/      Downloaded speech models. Keep these to avoid downloading again.
+dictionary/  Names, special terms, pronunciation aliases, and replacements.
+Skills/      Small transcription and review instruction files.
+Knowledge/   Compact English, Tagalog, Taglish, and accuracy references.
+
+NOISE AND MICROPHONE TIPS
+-------------------------
+- Put the microphone near the speaker.
+- Avoid music, televisions, echoes, and several people talking together.
+- Built-in cleanup is best for steady fan or air-conditioner noise.
+- Noise reduction cannot reconstruct words that were not recorded clearly.
+- The original WAV is always kept and is the best source for final checking.
+
+ACCURACY NOTICE
+---------------
+AI-assisted transcription can make mistakes. Always review the final
+transcript and replay the saved WAV before relying on names, dates, numbers,
+amounts, addresses, quotations, legal/medical wording, uncommon terms, or
+other important information. Grammar and diction comments are suggestions,
+not proof that the transcription is correct.
+
+PORTABILITY
+-----------
+Move the complete extracted folder, not only the launcher. Stop the app before
+unplugging an external drive. Keep a backup of important recordings, documents,
+models, dictionary files, and the original purchased ZIP.

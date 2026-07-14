@@ -1,0 +1,4 @@
+faster-whisper==1.2.1
+numpy>=1.26,<3
+python-docx==1.2.0
+sounddevice>=0.5.3,<0.6
