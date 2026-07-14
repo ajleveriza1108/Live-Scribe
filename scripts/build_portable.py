@@ -11,7 +11,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-VERSION = "0.3.2"
+VERSION = "0.3.5"
 APP_DIR_NAME = "LiveScribe"
 PRODUCT_SLUG = "Live-Scribe"
 ROOT = Path(__file__).resolve().parents[1]

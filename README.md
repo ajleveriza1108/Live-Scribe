@@ -5,7 +5,7 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.3.2** uses a two-stage workflow: a fast live transcript while the speaker is talking, followed by a more careful full-recording review after **Stop**. The original microphone audio is saved as WAV throughout the session.
+Version **0.3.5** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
 
 ## First-run model flow
 
@@ -20,7 +20,7 @@ The portable application and its dependencies are already present after setup or
 
 A different model is downloaded only when the buyer explicitly selects it and presses the download button.
 
-## What v0.3.2 does
+## What v0.3.5 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -213,7 +213,7 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.3.2` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.3.5` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 

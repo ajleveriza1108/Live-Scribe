@@ -1,4 +1,4 @@
 """Portable local English and Tagalog live transcription application."""
 
-__version__ = "0.3.2"
+__version__ = "0.3.5"
 __product_name__ = "Live Scribe"

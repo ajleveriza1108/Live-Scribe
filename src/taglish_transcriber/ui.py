@@ -20,6 +20,7 @@ from .config import (
 )
 from .dictionary_engine import VocabularyManager
 from .models import (
+    ModelDownloadProgress,
     ModelLoadError,
     TranscriptSegment,
     WhisperEngine,
@@ -61,7 +62,6 @@ class TaglishTranscriberApp:
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
         self.timestamps_var = tk.BooleanVar(value=self.settings.include_timestamps)
-        self.final_pass_var = tk.BooleanVar(value=self.settings.final_accuracy_pass)
         self.noise_reduction_var = tk.BooleanVar(value=self.settings.noise_reduction)
         self.review_var = tk.BooleanVar(value=self.settings.grammar_diction_comments)
         self.live_appendix_var = tk.BooleanVar(value=self.settings.include_live_appendix)
@@ -69,6 +69,8 @@ class TaglishTranscriberApp:
         self.activity_var = tk.StringVar(value="Select and download a speech model inside the app before the first session.")
         self.model_status_var = tk.StringVar(value=model_status(self.settings.model_name))
         self.recording_var = tk.StringVar(value="WAV recording: not started")
+        self.download_progress_value = tk.DoubleVar(value=0.0)
+        self.download_progress_text_var = tk.StringVar(value="")
 
         self._configure_style()
         self._build_ui()
@@ -161,49 +163,120 @@ class TaglishTranscriberApp:
         )
         self.model_combo.bind("<<ComboboxSelected>>", self._on_model_selected)
 
-        options_frame = ttk.LabelFrame(container, text="After the speaker stops", padding=10)
+        options_frame = ttk.LabelFrame(container, text="WAV verification options", padding=10)
         options_frame.grid(row=3, column=0, sticky="ew", pady=(9, 0))
-        ttk.Label(options_frame, text="Original WAV recording is always saved.").grid(row=0, column=0, padx=(0, 16), sticky="w")
-        ttk.Checkbutton(options_frame, text="Run final accuracy pass", variable=self.final_pass_var).grid(row=0, column=1, padx=(0, 14))
-        ttk.Checkbutton(options_frame, text="Reduce steady background noise", variable=self.noise_reduction_var).grid(row=0, column=2, padx=(0, 14))
-        ttk.Checkbutton(options_frame, text="Add grammar and diction comments", variable=self.review_var).grid(row=0, column=3, padx=(0, 14))
-        ttk.Checkbutton(options_frame, text="Include live transcript appendix", variable=self.live_appendix_var).grid(row=0, column=4)
+        ttk.Label(
+            options_frame,
+            text=(
+                "Stop only saves the original WAV and live transcript. "
+                "Click Verify from WAV when you are ready for the separate accuracy pass."
+            ),
+            wraplength=500,
+        ).grid(row=0, column=0, padx=(0, 16), sticky="w")
+        ttk.Checkbutton(
+            options_frame,
+            text="Reduce steady background noise",
+            variable=self.noise_reduction_var,
+        ).grid(row=0, column=1, padx=(0, 14))
+        ttk.Checkbutton(
+            options_frame,
+            text="Add grammar and diction comments",
+            variable=self.review_var,
+        ).grid(row=0, column=2, padx=(0, 14))
+        ttk.Checkbutton(
+            options_frame,
+            text="Include live transcript appendix",
+            variable=self.live_appendix_var,
+        ).grid(row=0, column=3)
 
         status_line = ttk.Frame(container)
         status_line.grid(row=4, column=0, sticky="ew", pady=(6, 0))
         status_line.columnconfigure(0, weight=1)
-        ttk.Label(status_line, textvariable=self.model_status_var, style="ModelStatus.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            status_line,
+            textvariable=self.model_status_var,
+            style="ModelStatus.TLabel",
+        ).grid(row=0, column=0, sticky="w")
         self.download_model_button = ttk.Button(
-            status_line, text="Download Selected Model", command=self._download_model_requested
+            status_line,
+            text="Download Selected Model",
+            command=self._download_model_requested,
         )
         self.download_model_button.grid(row=0, column=1, padx=(10, 14))
-        ttk.Label(status_line, textvariable=self.recording_var, style="ModelStatus.TLabel").grid(row=0, column=2, sticky="e")
+        ttk.Label(
+            status_line,
+            textvariable=self.recording_var,
+            style="ModelStatus.TLabel",
+        ).grid(row=0, column=2, sticky="e")
+
+        self.download_progress_frame = ttk.Frame(status_line, padding=(0, 7, 0, 0))
+        self.download_progress_frame.grid(
+            row=1,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+        )
+        self.download_progress_frame.columnconfigure(0, weight=1)
+        self.download_progress_bar = ttk.Progressbar(
+            self.download_progress_frame,
+            variable=self.download_progress_value,
+            maximum=100.0,
+            mode="determinate",
+        )
+        self.download_progress_bar.grid(row=0, column=0, sticky="ew")
+        ttk.Label(
+            self.download_progress_frame,
+            textvariable=self.download_progress_text_var,
+            style="Status.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self.download_progress_frame.grid_remove()
 
         controls = ttk.Frame(container)
         controls.grid(row=5, column=0, sticky="ew", pady=11)
-        controls.columnconfigure(12, weight=1)
+        controls.columnconfigure(13, weight=1)
         self.start_button = ttk.Button(
             controls, text="●  Start Listening", command=self._start_requested, style="Primary.TButton"
         )
         self.start_button.grid(row=0, column=0, padx=(0, 8))
-        self.stop_button = ttk.Button(controls, text="■  Stop", command=self._stop_requested, state="disabled")
+        self.stop_button = ttk.Button(
+            controls,
+            text="■  Stop & Save WAV",
+            command=self._stop_requested,
+            state="disabled",
+        )
         self.stop_button.grid(row=0, column=1, padx=(0, 8))
+        self.verify_wav_button = ttk.Button(
+            controls,
+            text="✓  Verify from WAV",
+            command=self._verify_wav_requested,
+            state="disabled",
+        )
+        self.verify_wav_button.grid(row=0, column=2, padx=(0, 8))
         self.clear_button = ttk.Button(controls, text="New Session", command=self._clear_transcript)
-        self.clear_button.grid(row=0, column=2, padx=(0, 14))
-        ttk.Label(controls, text="Export:").grid(row=0, column=3, padx=(0, 6))
+        self.clear_button.grid(row=0, column=3, padx=(0, 14))
+        ttk.Label(controls, text="Export:").grid(row=0, column=4, padx=(0, 6))
         self.save_docx_button = ttk.Button(controls, text="Word DOCX", command=self._save_docx)
-        self.save_docx_button.grid(row=0, column=4, padx=(0, 6))
+        self.save_docx_button.grid(row=0, column=5, padx=(0, 6))
         self.save_txt_button = ttk.Button(controls, text="TXT", command=self._save_txt)
-        self.save_txt_button.grid(row=0, column=5, padx=(0, 6))
+        self.save_txt_button.grid(row=0, column=6, padx=(0, 6))
         self.save_srt_button = ttk.Button(controls, text="SRT", command=self._save_srt)
-        self.save_srt_button.grid(row=0, column=6, padx=(0, 10))
-        ttk.Button(controls, text="Recording Folder", command=self._open_recording_folder).grid(row=0, column=7, padx=(0, 8))
+        self.save_srt_button.grid(row=0, column=7, padx=(0, 10))
         ttk.Button(
-            controls, text="Vocabulary & Pronunciation", command=self._open_vocabulary_dialog
-        ).grid(row=0, column=8, padx=(0, 12))
+            controls,
+            text="Recording Folder",
+            command=self._open_recording_folder,
+        ).grid(row=0, column=8, padx=(0, 8))
+        ttk.Button(
+            controls,
+            text="Vocabulary & Pronunciation",
+            command=self._open_vocabulary_dialog,
+        ).grid(row=0, column=9, padx=(0, 12))
         ttk.Checkbutton(
-            controls, text="Show timestamps", variable=self.timestamps_var, command=self._redraw_all
-        ).grid(row=0, column=9, sticky="w")
+            controls,
+            text="Show timestamps",
+            variable=self.timestamps_var,
+            command=self._redraw_all,
+        ).grid(row=0, column=10, sticky="w")
 
         self.notebook = ttk.Notebook(container)
         self.notebook.grid(row=6, column=0, sticky="nsew")
@@ -286,7 +359,8 @@ class TaglishTranscriberApp:
             device_mode=self.device_var.get(),
             sensitivity_label=self.sensitivity_var.get(),
             include_timestamps=self.timestamps_var.get(),
-            final_accuracy_pass=self.final_pass_var.get(),
+            # Kept in settings for backward compatibility; WAV verification is now manual.
+            final_accuracy_pass=False,
             noise_reduction=self.noise_reduction_var.get(),
             grammar_diction_comments=self.review_var.get(),
             include_live_appendix=self.live_appendix_var.get(),
@@ -305,20 +379,34 @@ class TaglishTranscriberApp:
     def _set_controls_for_loading(self) -> None:
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="disabled")
+        self.verify_wav_button.configure(state="disabled")
         self.download_model_button.configure(state="disabled")
         self._set_settings_state("disabled")
 
     def _set_controls_for_listening(self) -> None:
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
+        self.verify_wav_button.configure(state="disabled")
         self.download_model_button.configure(state="disabled")
         self._set_settings_state("disabled")
 
     def _set_controls_for_idle(self) -> None:
         model_name = self._selected_model_name()
         ready = bool(model_name and is_model_downloaded(model_name))
+        recording_ready = bool(
+            self.document.recording_path
+            and self.document.recording_path.exists()
+        )
         self.start_button.configure(state="normal" if ready else "disabled")
         self.stop_button.configure(state="disabled")
+        self.verify_wav_button.configure(
+            state="normal" if recording_ready and self.engine is not None else "disabled",
+            text=(
+                "↻  Re-verify from WAV"
+                if recording_ready and self.document.is_finalized
+                else "✓  Verify from WAV"
+            ),
+        )
         self.download_model_button.configure(
             state="normal" if model_name and not ready else "disabled"
         )
@@ -355,6 +443,7 @@ class TaglishTranscriberApp:
         self.settings.save()
         self.model_downloading = True
         self._set_controls_for_loading()
+        self._show_download_progress(model_name)
         self.status_var.set("Downloading model…")
         self.activity_var.set("Downloading the selected model into the portable models folder.")
         threading.Thread(
@@ -366,7 +455,10 @@ class TaglishTranscriberApp:
 
     def _download_model_worker(self, model_name: str) -> None:
         try:
-            download_model_once(model_name, progress_callback=self._threadsafe_status)
+            download_model_once(
+                model_name,
+                progress_callback=self._threadsafe_download_progress,
+            )
         except ModelLoadError as exc:
             self.root.after(0, self._model_download_failed, str(exc))
             return
@@ -382,6 +474,7 @@ class TaglishTranscriberApp:
 
     def _model_download_finished(self, model_name: str) -> None:
         self.model_downloading = False
+        self._hide_download_progress()
         self.settings.model_name = model_name
         self.settings.save()
         self._update_model_status()
@@ -395,11 +488,113 @@ class TaglishTranscriberApp:
 
     def _model_download_failed(self, message: str) -> None:
         self.model_downloading = False
+        self._hide_download_progress()
         self._update_model_status()
         self._set_controls_for_idle()
         self.status_var.set("Ready.")
         self.activity_var.set("The model download did not finish.")
         messagebox.showerror("Could not download model", message)
+
+    @staticmethod
+    def _format_download_bytes(value: float) -> str:
+        value = max(0.0, float(value))
+        units = ("B", "KB", "MB", "GB", "TB")
+        unit_index = 0
+        while value >= 1024.0 and unit_index < len(units) - 1:
+            value /= 1024.0
+            unit_index += 1
+        decimals = 0 if unit_index == 0 else 1 if value >= 10 else 2
+        return f"{value:.{decimals}f} {units[unit_index]}"
+
+    @staticmethod
+    def _format_download_eta(seconds: float | None) -> str:
+        if seconds is None or seconds < 0:
+            return ""
+        remaining = int(round(seconds))
+        if remaining < 60:
+            return f"about {remaining}s remaining"
+        minutes, secs = divmod(remaining, 60)
+        if minutes < 60:
+            return f"about {minutes}m {secs:02d}s remaining"
+        hours, minutes = divmod(minutes, 60)
+        return f"about {hours}h {minutes:02d}m remaining"
+
+    def _show_download_progress(self, model_name: str) -> None:
+        self.download_progress_value.set(0.0)
+        self.download_progress_text_var.set(
+            f"Preparing the {model_name} model download…"
+        )
+        self.download_progress_bar.stop()
+        self.download_progress_bar.configure(mode="indeterminate")
+        self.download_progress_bar.start(12)
+        self.download_progress_frame.grid()
+
+    def _hide_download_progress(self) -> None:
+        self.download_progress_bar.stop()
+        self.download_progress_bar.configure(mode="determinate")
+        self.download_progress_value.set(0.0)
+        self.download_progress_text_var.set("")
+        self.download_progress_frame.grid_remove()
+
+    def _threadsafe_download_progress(
+        self,
+        progress: ModelDownloadProgress,
+    ) -> None:
+        self.root.after(0, self._apply_download_progress, progress)
+
+    def _apply_download_progress(
+        self,
+        progress: ModelDownloadProgress,
+    ) -> None:
+        if not self.model_downloading and progress.phase != "complete":
+            return
+
+        percent = progress.percent
+        if percent is None:
+            if str(self.download_progress_bar.cget("mode")) != "indeterminate":
+                self.download_progress_bar.configure(mode="indeterminate")
+                self.download_progress_bar.start(12)
+        else:
+            self.download_progress_bar.stop()
+            self.download_progress_bar.configure(mode="determinate")
+            self.download_progress_value.set(percent)
+
+        if progress.phase == "preparing":
+            detail = progress.message or "Checking model files and size…"
+            self.status_var.set("Preparing download…")
+            self.download_progress_text_var.set(detail)
+            return
+
+        size_parts: list[str] = []
+        downloaded = self._format_download_bytes(progress.downloaded_bytes)
+        if progress.total_bytes > 0:
+            total = self._format_download_bytes(progress.total_bytes)
+            estimate_mark = "≈ " if progress.total_is_estimate else ""
+            size_parts.append(f"{downloaded} / {estimate_mark}{total}")
+        else:
+            size_parts.append(f"{downloaded} downloaded")
+
+        if percent is not None:
+            size_parts.append(f"{percent:.1f}%")
+
+        if progress.speed_bytes_per_second > 0:
+            speed = self._format_download_bytes(
+                progress.speed_bytes_per_second
+            )
+            size_parts.append(f"{speed}/s")
+
+        eta = self._format_download_eta(progress.eta_seconds)
+        if eta:
+            size_parts.append(eta)
+
+        self.download_progress_text_var.set(
+            f"{progress.model_name}: " + "  •  ".join(size_parts)
+        )
+
+        if percent is None:
+            self.status_var.set("Downloading model…")
+        else:
+            self.status_var.set(f"Downloading model… {percent:.0f}%")
 
     def _start_requested(self) -> None:
         if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:
@@ -544,18 +739,51 @@ class TaglishTranscriberApp:
             recording_path = Path(payload["recording_path"])
             self.document.recording_path = recording_path
             self.session = None
-            if self.settings.final_accuracy_pass and self.engine is not None:
-                self._start_finalization(recording_path)
-            else:
-                self._set_controls_for_idle()
-                self.status_var.set("Ready.")
-                self.activity_var.set("Listening stopped. Original WAV and live transcript are ready.")
+            self._set_controls_for_idle()
+            self.status_var.set("WAV ready")
+            self.activity_var.set(
+                "Listening stopped. The original WAV and live transcript are safe. "
+                "Click Verify from WAV to run the separate full-recording accuracy pass."
+            )
+
+    def _verify_wav_requested(self) -> None:
+        if self.session is not None or self.model_loading or self.model_downloading or self.finalizing:
+            return
+
+        recording_path = self.document.recording_path
+        if recording_path is None or not recording_path.exists():
+            messagebox.showinfo(
+                "No WAV recording",
+                "Start a live transcription session and click Stop & Save WAV first.",
+            )
+            return
+
+        if self.engine is None:
+            messagebox.showwarning(
+                "Speech engine unavailable",
+                "The speech engine from this session is no longer available. "
+                "Keep Live Scribe open after stopping, then click Verify from WAV.",
+            )
+            return
+
+        if self.document.is_finalized:
+            approved = messagebox.askyesno(
+                "Verify the WAV again",
+                "A final transcript already exists. Run the full-WAV verification again "
+                "and replace the current final transcript and review comments?",
+            )
+            if not approved:
+                return
+
+        self.settings = self._collect_settings()
+        self.settings.save()
+        self._start_finalization(recording_path)
 
     def _start_finalization(self, recording_path: Path) -> None:
         self.finalizing = True
         self._set_controls_for_loading()
         self.status_var.set("Checking the full recording…")
-        self.activity_var.set("Reducing noise when enabled, then transcribing the complete WAV again.")
+        self.activity_var.set("Using the saved WAV for a separate full-recording accuracy check.")
         threading.Thread(
             target=self._run_finalization,
             args=(recording_path,),
@@ -632,7 +860,7 @@ class TaglishTranscriberApp:
         if not self.document.final_entries:
             self.final_text.insert(
                 "end",
-                "The final transcript appears here after the speaker presses Stop and the complete WAV is checked.\n",
+                "The final transcript appears here after Stop & Save WAV, then Verify from WAV.\n",
                 "note",
             )
             return
@@ -677,6 +905,8 @@ class TaglishTranscriberApp:
         self._redraw_final()
         self._redraw_review()
         self.recording_var.set("WAV recording: not started")
+        if hasattr(self, "verify_wav_button"):
+            self._set_controls_for_idle()
 
     def _ensure_content(self) -> bool:
         if self.document.entries:

@@ -41,7 +41,8 @@ class AppSettings:
     device_mode: str = "Auto"
     sensitivity_label: str = "Normal"
     include_timestamps: bool = True
-    final_accuracy_pass: bool = True
+    # Legacy preference retained for existing settings files. Verification is manual in v0.3.5.
+    final_accuracy_pass: bool = False
     noise_reduction: bool = True
     grammar_diction_comments: bool = True
     include_live_appendix: bool = True

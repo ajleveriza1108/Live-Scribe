@@ -1,4 +1,4 @@
-# Seller Release Guide — v0.3.2
+# Seller Release Guide — v0.3.5
 
 ## Repository
 
@@ -28,8 +28,8 @@ Manual workflow runs create temporary artifacts. A version tag creates a GitHub 
 git add .
 git commit -m "Add explicit model downloads and pronunciation guide"
 git push origin main
-git tag v0.3.2
-git push origin v0.3.2
+git tag v0.3.5
+git push origin v0.3.5
 ```
 
 ## Buyer archive requirements

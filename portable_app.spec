@@ -136,7 +136,7 @@ if sys.platform == "darwin":
             "NSMicrophoneUsageDescription": (
                 "Live Scribe needs microphone access to create live transcripts."
             ),
-            "CFBundleShortVersionString": "0.3.2",
-            "CFBundleVersion": "0.3.2",
+            "CFBundleShortVersionString": "0.3.5",
+            "CFBundleVersion": "0.3.5",
         },
     )

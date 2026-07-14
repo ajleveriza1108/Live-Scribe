@@ -13,7 +13,6 @@ if [ -f "$SCRIPT_DIR/launchers/start_macos.sh" ]; then
     exec "$SCRIPT_DIR/launchers/start_macos.sh"
 fi
 
-echo "start_macos.sh was not found."
-echo "Keep this file beside start_macos.sh or in the Live Scribe project root."
+echo "Live Scribe could not find start_macos.sh."
 printf "Press Return to close..."
 read answer

@@ -3,10 +3,9 @@ setlocal EnableExtensions
 
 rem ============================================================
 rem Live Scribe launcher for Windows
-rem Supports:
-rem   1. Portable build: LiveScribe\LiveScribe.exe
-rem   2. Portable build: LiveScribe.exe
-rem   3. Source build:   .venv\Scripts\python.exe app.py
+rem Works with:
+rem   - Source project: .venv\Scripts\python.exe + app.py
+rem   - Portable build: LiveScribe\LiveScribe.exe
 rem ============================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -14,11 +13,9 @@ for %%I in ("%SCRIPT_DIR%.") do set "SCRIPT_DIR=%%~fI"
 
 set "APP_ROOT=%SCRIPT_DIR%"
 
-rem Also support this launcher inside a launchers subfolder.
-if not exist "%APP_ROOT%\app.py" (
-    if exist "%SCRIPT_DIR%\..\app.py" (
-        for %%I in ("%SCRIPT_DIR%\..") do set "APP_ROOT=%%~fI"
-    )
+rem In the source project this file is stored inside "launchers".
+if exist "%SCRIPT_DIR%\..\app.py" (
+    for %%I in ("%SCRIPT_DIR%\..") do set "APP_ROOT=%%~fI"
 )
 
 cd /d "%APP_ROOT%"
@@ -35,42 +32,48 @@ echo.
 
 if exist "%PORTABLE_EXE%" (
     "%PORTABLE_EXE%"
+    set "EXIT_CODE=%ERRORLEVEL%"
     goto :finished
 )
 
 if exist "%ROOT_EXE%" (
     "%ROOT_EXE%"
+    set "EXIT_CODE=%ERRORLEVEL%"
     goto :finished
 )
 
 if exist "%VENV_PYTHON%" (
     if exist "%SOURCE_APP%" (
         "%VENV_PYTHON%" "%SOURCE_APP%"
+        set "EXIT_CODE=%ERRORLEVEL%"
         goto :finished
     )
 )
 
 echo Live Scribe could not be started.
 echo.
-echo No portable executable or prepared Python environment was found.
+echo Source mode requires:
+echo   %VENV_PYTHON%
+echo   %SOURCE_APP%
 echo.
-echo For the source version, first run:
+echo Portable mode requires:
+echo   %PORTABLE_EXE%
+echo.
+echo For source development, run:
 echo   powershell -ExecutionPolicy Bypass -File ".\scripts\dev_setup_windows.ps1"
-echo.
-echo Then open this launcher again.
 echo.
 pause
 exit /b 1
 
 :finished
-set "APP_EXIT=%ERRORLEVEL%"
+if not defined EXIT_CODE set "EXIT_CODE=0"
 
-if not "%APP_EXIT%"=="0" (
+if not "%EXIT_CODE%"=="0" (
     echo.
-    echo Live Scribe closed with exit code %APP_EXIT%.
-    echo Keep this message when requesting support.
+    echo Live Scribe closed with exit code %EXIT_CODE%.
+    echo Keep this window open when requesting support.
     echo.
     pause
 )
 
-exit /b %APP_EXIT%
+exit /b %EXIT_CODE%

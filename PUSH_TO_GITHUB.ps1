@@ -1,8 +1,16 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Update Live Scribe"
+$CommitMessage = "Release Live Scribe v0.3.5"
+
+function Assert-GitSuccess {
+    param([Parameter(Mandatory = $true)][string]$Action)
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Action failed with exit code $LASTEXITCODE."
+    }
+}
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw "Git is not installed. Install Git for Windows, then run this script again."
@@ -11,70 +19,47 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 if (-not (Test-Path ".git")) {
     Write-Host "Initializing Git repository..." -ForegroundColor Yellow
     & git init
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Git could not initialize the repository."
-    }
+    Assert-GitSuccess -Action "Git initialization"
 }
 
 & git branch -M main
+Assert-GitSuccess -Action "Setting the main branch"
 
-$remoteExists = $false
-$existingRemotes = @(& git remote)
+$RemoteNames = @(& git remote)
+if ($RemoteNames -contains "origin") {
+    $CurrentRemote = (& git remote get-url origin).Trim()
+    Assert-GitSuccess -Action "Reading the origin remote"
 
-if ($existingRemotes -contains "origin") {
-    $remoteExists = $true
-}
-
-if (-not $remoteExists) {
-    Write-Host "Adding the GitHub repository..." -ForegroundColor Yellow
-    & git remote add origin $RepositoryUrl
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "The GitHub repository could not be added as origin."
+    if ($CurrentRemote -ne $RepositoryUrl) {
+        Write-Host "Updating origin..." -ForegroundColor Yellow
+        & git remote set-url origin $RepositoryUrl
+        Assert-GitSuccess -Action "Updating the origin remote"
     }
 }
 else {
-    $currentRemote = (& git remote get-url origin).Trim()
-
-    if ($currentRemote -ne $RepositoryUrl) {
-        Write-Host "Correcting the GitHub repository address..." -ForegroundColor Yellow
-        & git remote set-url origin $RepositoryUrl
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "The origin repository address could not be updated."
-        }
-    }
+    Write-Host "Adding origin..." -ForegroundColor Yellow
+    & git remote add origin $RepositoryUrl
+    Assert-GitSuccess -Action "Adding the origin remote"
 }
 
 Write-Host "Adding changed files..." -ForegroundColor Yellow
 & git add .
+Assert-GitSuccess -Action "Adding changed files"
 
-if ($LASTEXITCODE -ne 0) {
-    throw "Git could not add the changed files."
-}
-
-$changes = & git status --porcelain
-
-if ($changes) {
+$Changes = & git status --porcelain
+if ($Changes) {
     Write-Host "Creating commit..." -ForegroundColor Yellow
     & git commit -m $CommitMessage
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Git could not create the commit."
-    }
+    Assert-GitSuccess -Action "Creating the commit"
 }
 else {
-    Write-Host "No new file changes need to be committed." -ForegroundColor DarkGray
+    Write-Host "No uncommitted changes were found." -ForegroundColor DarkGray
 }
 
-Write-Host "Uploading to GitHub..." -ForegroundColor Yellow
+Write-Host "Pushing to GitHub..." -ForegroundColor Yellow
 & git push -u origin main
-
-if ($LASTEXITCODE -ne 0) {
-    throw "Git could not push the project to GitHub."
-}
+Assert-GitSuccess -Action "Pushing to GitHub"
 
 Write-Host ""
-Write-Host "Live Scribe was successfully uploaded." -ForegroundColor Green
+Write-Host "Live Scribe was uploaded successfully:" -ForegroundColor Green
 Write-Host $RepositoryUrl -ForegroundColor Cyan
