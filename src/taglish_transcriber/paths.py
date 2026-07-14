@@ -47,13 +47,39 @@ ENGINES_DIR = APP_ROOT / "engines"
 CACHE_DIR = APP_ROOT / ".cache"
 TEMP_DIR = CACHE_DIR / "temp"
 HF_HOME_DIR = CACHE_DIR / "huggingface"
+HF_XET_CACHE_DIR = HF_HOME_DIR / "xet"
+HF_ASSETS_CACHE_DIR = HF_HOME_DIR / "assets"
+XDG_CACHE_DIR = CACHE_DIR / "xdg" / "cache"
+XDG_CONFIG_DIR = CACHE_DIR / "xdg" / "config"
+XDG_DATA_DIR = CACHE_DIR / "xdg" / "data"
+PYCACHE_DIR = CACHE_DIR / "pycache"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 TOPIC_PROFILES_FILE = DATA_DIR / "topic_profiles.json"
 HARDWARE_PROFILE_FILE = DATA_DIR / "hardware_profile.json"
 
-# Keep model downloads and Hugging Face cache inside the portable folder.
-os.environ.setdefault("HF_HOME", str(HF_HOME_DIR))
-os.environ.setdefault("HF_HUB_CACHE", str(HF_HOME_DIR / "hub"))
+def configure_portable_environment() -> None:
+    """Keep writable runtime state beside the portable application."""
+    values = {
+        "HF_HOME": HF_HOME_DIR,
+        "HF_HUB_CACHE": HF_HOME_DIR / "hub",
+        "HF_XET_CACHE": HF_XET_CACHE_DIR,
+        "HF_ASSETS_CACHE": HF_ASSETS_CACHE_DIR,
+        "XDG_CACHE_HOME": XDG_CACHE_DIR,
+        "XDG_CONFIG_HOME": XDG_CONFIG_DIR,
+        "XDG_DATA_HOME": XDG_DATA_DIR,
+        "TMP": TEMP_DIR,
+        "TEMP": TEMP_DIR,
+        "TMPDIR": TEMP_DIR,
+    }
+    for name, path in values.items():
+        os.environ[name] = str(path)
+
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
+
+configure_portable_environment()
 
 
 def ensure_app_directories() -> None:
@@ -68,6 +94,12 @@ def ensure_app_directories() -> None:
             DICTIONARY_DIR,
             ENGINES_DIR,
             HF_HOME_DIR,
+            HF_XET_CACHE_DIR,
+            HF_ASSETS_CACHE_DIR,
+            XDG_CACHE_DIR,
+            XDG_CONFIG_DIR,
+            XDG_DATA_DIR,
+            PYCACHE_DIR,
             TEMP_DIR,
         ):
             directory.mkdir(parents=True, exist_ok=True)
@@ -82,3 +114,16 @@ def new_recording_path() -> Path:
     ensure_app_directories()
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     return RECORDING_DIR / f"live-scribe-recording_{stamp}.wav"
+
+
+def atomic_write_text(
+    path: Path,
+    text: str,
+    *,
+    encoding: str = "utf-8",
+) -> None:
+    """Write a small settings/data file through a same-folder temporary file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(text, encoding=encoding)
+    temporary.replace(path)

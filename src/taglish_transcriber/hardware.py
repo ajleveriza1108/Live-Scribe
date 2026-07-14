@@ -19,6 +19,12 @@ from .config import (
     model_size_label,
 )
 from .paths import HARDWARE_PROFILE_FILE, MODEL_DIR, ensure_app_directories
+from .portable import (
+    STORAGE_SLOW,
+    STORAGE_USABLE,
+    PortableStorageReport,
+    assess_portable_storage,
+)
 
 
 STATUS_RECOMMENDED = "recommended"
@@ -27,7 +33,7 @@ STATUS_UNAVAILABLE = "unavailable"
 
 MIB = 1024**2
 GIB = 1024**3
-HARDWARE_CHECK_VERSION = 1
+HARDWARE_CHECK_VERSION = 2
 
 MODEL_REQUIREMENTS = {
     "small": {
@@ -72,6 +78,11 @@ class HardwareSnapshot:
     cuda_device_count: int
     gpu_name: str | None = None
     gpu_vram_bytes: int | None = None
+    portable_drive_kind: str = "Drive type unknown"
+    portable_likely_removable: bool = False
+    portable_write_mbps: float | None = None
+    portable_storage_status: str = "not tested"
+    portable_storage_note: str = ""
     notes: tuple[str, ...] = ()
 
     @property
@@ -105,6 +116,11 @@ class HardwareSnapshot:
             parts.append(f"{format_gib(self.free_disk_bytes)} free")
         else:
             parts.append("free storage unknown")
+
+        portable = self.portable_drive_kind
+        if self.portable_write_mbps is not None:
+            portable += f" ({self.portable_write_mbps:.1f} MB/s quick write)"
+        parts.append(portable)
         return "  •  ".join(parts)
 
 
@@ -172,6 +188,9 @@ class HardwareAssessment:
             self.snapshot.summary(),
             "",
             f"Recommended for this computer: {recommendation}.",
+            "",
+            "Portable storage:",
+            self.snapshot.portable_storage_note,
         ]
         cautions = [
             model_friendly_name(model_name)
@@ -338,9 +357,10 @@ def _cuda_device_count() -> tuple[int, tuple[str, ...]]:
         return 0, (f"GPU compatibility check was inconclusive: {exc}",)
 
 
-def detect_hardware() -> HardwareSnapshot:
+def detect_hardware(*, run_storage_test: bool = False) -> HardwareSnapshot:
     ensure_app_directories()
     notes: list[str] = []
+    portable = assess_portable_storage(run_speed_test=run_storage_test)
 
     try:
         free_disk = int(shutil.disk_usage(MODEL_DIR).free)
@@ -369,6 +389,11 @@ def detect_hardware() -> HardwareSnapshot:
         cuda_device_count=cuda_count,
         gpu_name=gpu_name,
         gpu_vram_bytes=gpu_vram,
+        portable_drive_kind=portable.drive_kind,
+        portable_likely_removable=portable.likely_removable,
+        portable_write_mbps=portable.write_mbps,
+        portable_storage_status=portable.performance,
+        portable_storage_note=portable.note,
         notes=tuple(notes),
     )
 
@@ -478,6 +503,24 @@ def evaluate_hardware(
                 f"{snapshot.cpu_threads} were detected"
             )
 
+        if snapshot.portable_storage_status == STORAGE_SLOW and model_name != "small":
+            speed_text = (
+                f"{snapshot.portable_write_mbps:.1f} MB/s"
+                if snapshot.portable_write_mbps is not None
+                else "a slow result"
+            )
+            caution_reasons.append(
+                f"the portable drive quick write test measured {speed_text}; "
+                "model startup, downloads, and WAV verification may be slow"
+            )
+        elif (
+            snapshot.portable_storage_status == STORAGE_USABLE
+            and model_name == "large-v3"
+        ):
+            caution_reasons.append(
+                "the portable drive is usable but below the preferred speed for the largest model"
+            )
+
         if model_name == "large-v3":
             if not snapshot.has_cuda_gpu:
                 caution_reasons.append(
@@ -543,7 +586,11 @@ def evaluate_hardware(
             required_free_bytes=required_free,
         )
 
-    preferred_order = ("large-v3-turbo", "medium", "small")
+    preferred_order = (
+        ("small", "medium", "large-v3-turbo")
+        if snapshot.portable_storage_status == STORAGE_SLOW
+        else ("large-v3-turbo", "medium", "small")
+    )
     recommended_model = next(
         (
             model_name
@@ -570,9 +617,9 @@ def evaluate_hardware(
     )
 
 
-def assess_this_pc() -> HardwareAssessment:
+def assess_this_pc(*, run_storage_test: bool = False) -> HardwareAssessment:
     return evaluate_hardware(
-        detect_hardware(),
+        detect_hardware(run_storage_test=run_storage_test),
         existing_model_bytes=local_model_bytes(),
         complete_models=downloaded_models(),
     )

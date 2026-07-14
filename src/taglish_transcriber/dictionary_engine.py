@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .paths import DICTIONARY_DIR, ensure_app_directories
+from .paths import DICTIONARY_DIR, atomic_write_text, ensure_app_directories
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,9 +207,9 @@ class VocabularyManager:
             written: list(aliases)
             for written, aliases in sorted(data.items(), key=lambda item: item[0].casefold())
         }
-        self.pronunciations_path.write_text(
+        atomic_write_text(
+            self.pronunciations_path,
             json.dumps(serializable, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
         )
 
     def hotwords(

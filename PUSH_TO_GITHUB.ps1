@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Add first-run PC model compatibility check"
+$CommitMessage = "Harden portable flash-drive operation"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)

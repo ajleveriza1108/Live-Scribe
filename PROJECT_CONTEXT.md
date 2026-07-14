@@ -2,7 +2,7 @@
 
 ## Current version
 
-0.6.1
+0.6.2
 
 ## Repository
 
@@ -74,7 +74,7 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 
 Optional packs must be separately downloadable, license-reviewed, checksum-verified, removable, and disabled by default.
 
-## v0.6.1 interface direction
+## v0.6.2 interface direction
 
 The approved buyer interface is CustomTkinter-based, with OLED Black and Dirty
 White themes, compact left navigation, transcript-first Live Session page,
@@ -92,7 +92,7 @@ The UI must not describe this as deleting or restarting the model.
 The manager exposes explicit Add New, Save Changes, and Remove Selected operations.
 Editing may change both the correct written spelling and its pronunciation aliases.
 
-## v0.6.1 topic profile direction
+## v0.6.2 topic profile direction
 
 Live Scribe now includes local editable Topic Profiles. The user chooses a
 profile before starting a session. Topic terms are prioritized in Faster-Whisper
@@ -104,7 +104,7 @@ Zoom/Google Meet, interviews, church, livestreams, technology, e-commerce, and
 news. Users can add, edit, or remove profiles in the modern Topics page. No LLM
 or separate model download is involved.
 
-## v0.6.1 hardware guidance
+## v0.6.2 hardware guidance
 
 Live Scribe performs a local hardware assessment at every startup and displays a
 buyer-facing notice on the first run. The assessment checks RAM, CPU threads,
@@ -119,4 +119,19 @@ speed and uncertain GPU support generate caution notes rather than blocks.
 The Models page filters unavailable downloads, shows all four compatibility
 results, and includes Check This PC Again for portable copies moved between PCs.
 The result is saved to data/hardware_profile.json and is never uploaded.
+
+## v0.6.2 portable flash-drive hardening
+
+The buyer build remains PyInstaller onedir/one-folder. Launchers and the frozen
+runtime hook force settings, model cache, Xet cache, XDG caches, Python source
+cache, and temporary paths under the portable application root.
+
+The first-run hardware check includes a 32 MB sequential-write advisory test.
+Slow storage warns and changes the preferred recommendation toward Compact, but
+never creates a hard model block. Clear RAM, architecture, and free-space
+failures remain the only automatic blockers.
+
+Settings and vocabulary JSON writes are atomic. The GUI prevents normal closure
+during model download, recording, model loading, and WAV verification to reduce
+the risk of corruption if a removable drive is unplugged.
 

@@ -5,7 +5,7 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.6.1** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+Version **0.6.2** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
 
 ## Modern interface
 
@@ -132,7 +132,7 @@ Do not paste a complete transcript or manuscript. Topic context is only a
 recognition hint. Important information must still be checked against the WAV.
 
 
-## What v0.6.1 does
+## What v0.6.2 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -331,11 +331,69 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.6.1` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.6.2` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 
 The same warning is displayed permanently inside the app and included in formatted DOCX reports. AI-assisted transcription can make mistakes. Always replay the saved WAV when exact names, dates, amounts, addresses, quotations, legal wording, medical wording, or safety-critical instructions matter. Several people speaking at once will reduce accuracy.
+
+
+## Portable flash-drive operation
+
+Live Scribe is packaged as a **one-folder portable application**. Keep the
+complete product folder together and launch it through the included Windows,
+Linux, or macOS launcher.
+
+The app keeps these writable files beside the program:
+
+- downloaded speech models
+- resumable Hugging Face model cache
+- settings and hardware report
+- topic profiles
+- vocabulary and pronunciation entries
+- WAV recordings
+- DOCX, TXT, and SRT exports
+- temporary files and supporting caches
+
+The launcher sets `LIVE_SCRIBE_HOME` and redirects Hugging Face, XDG, Python
+cache, and temporary-file locations into `.cache` inside the portable folder.
+
+### Flash-drive speed
+
+A fast USB 3.x flash drive or portable SSD is recommended. A slow drive mainly
+affects:
+
+- application startup
+- initial model loading
+- model downloads and resume operations
+- full-WAV verification
+- saving large recordings and exports
+
+After the model is loaded, live transcription depends primarily on the host
+computer's CPU, RAM, and compatible GPU.
+
+The first-run PC check now includes a small 32 MB sequential-write test. Storage
+speed creates a recommendation or warning; it does not hard-disable a model.
+Clear RAM, architecture, and free-space failures remain the only reasons for
+automatic model blocking.
+
+### Safe removal
+
+Do not unplug or eject the drive during recording, model download, WAV
+verification, export, or profile editing. Live Scribe blocks normal application
+closure while a download, recording, model load, or verification is active.
+Finish or stop the operation, close the app normally, and then safely eject the
+drive.
+
+### Packaging choice
+
+The buyer release remains a PyInstaller **one-folder** build instead of a
+single self-extracting executable. This avoids unpacking the full application
+into a host-computer temporary folder on every launch and keeps the executable
+with its supporting runtime files.
+
+Read `PORTABLE_USE.txt` in the release folder for buyer instructions.
+
 
 ## First-run PC capability check
 

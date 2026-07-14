@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.6.1 — BUYER QUICK GUIDE
+LIVE SCRIBE v0.6.2 — BUYER QUICK GUIDE
 ================================================
 
 WHAT IT DOES
@@ -171,4 +171,19 @@ another computer, adding RAM, freeing storage, or changing GPU setup.
 This is a conservative estimate, not a speed or accuracy guarantee. Close
 memory-heavy programs during transcription and always verify important content
 against the saved WAV.
+
+PORTABLE FLASH-DRIVE USE
+------------------------
+Keep the whole Live Scribe folder together. Do not copy only the executable.
+Use a fast USB 3.x flash drive or portable SSD for the smoothest startup and
+model loading.
+
+The app keeps models, settings, recordings, exports, topic profiles, vocabulary,
+download cache, and temporary files in the portable folder.
+
+Do not remove the drive while downloading, recording, verifying, exporting, or
+saving. Close Live Scribe normally and safely eject the drive afterward.
+
+The first-run PC check includes a small portable-drive speed test. Slow storage
+creates a warning but does not automatically disable a model.
 

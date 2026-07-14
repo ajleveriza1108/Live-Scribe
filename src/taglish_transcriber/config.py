@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .paths import SETTINGS_FILE, ensure_app_directories
+from .paths import SETTINGS_FILE, atomic_write_text, ensure_app_directories
 
 
 MODEL_PLACEHOLDER = "Choose speech quality…"
@@ -246,7 +246,7 @@ class AppSettings:
 
     def save(self, path: Path = SETTINGS_FILE) -> None:
         ensure_app_directories()
-        path.write_text(
-            json.dumps(asdict(self), indent=2, ensure_ascii=False),
-            encoding="utf-8",
+        atomic_write_text(
+            path,
+            json.dumps(asdict(self), indent=2, ensure_ascii=False) + "\n",
         )

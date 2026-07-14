@@ -118,7 +118,9 @@ class TaglishTranscriberApp(_Controller):
             not self.settings.hardware_check_completed
             or self.settings.hardware_check_version < HARDWARE_CHECK_VERSION
         )
-        self.hardware_assessment = assess_this_pc()
+        self.hardware_assessment = assess_this_pc(
+            run_storage_test=self.first_run_hardware_notice
+        )
         save_hardware_assessment(self.hardware_assessment)
 
         selected_hardware_model = self.settings.model_name
@@ -309,7 +311,7 @@ class TaglishTranscriberApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.6.1",
+            text="Version 0.6.2",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=9, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -904,7 +906,7 @@ class TaglishTranscriberApp(_Controller):
         self._page_header(
             header,
             "Speech Quality",
-            "Live Scribe checks this computer before offering model downloads.",
+            "Live Scribe checks this computer and its portable storage before offering model downloads.",
         )
 
         hardware_card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
@@ -1501,11 +1503,13 @@ class TaglishTranscriberApp(_Controller):
 
         self.recheck_pc_button.configure(state="disabled", text="Checking…")
         self.status_var.set("Checking PC")
-        self.activity_var.set("Checking RAM, CPU, GPU compatibility, and free model storage.")
+        self.activity_var.set(
+            "Checking RAM, CPU, GPU compatibility, free model storage, and portable drive speed."
+        )
         self.root.update_idletasks()
 
         try:
-            self.hardware_assessment = assess_this_pc()
+            self.hardware_assessment = assess_this_pc(run_storage_test=True)
             save_hardware_assessment(self.hardware_assessment)
             self.settings.hardware_check_completed = True
             self.settings.hardware_check_version = HARDWARE_CHECK_VERSION

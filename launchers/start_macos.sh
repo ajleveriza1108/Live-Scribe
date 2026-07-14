@@ -1,24 +1,42 @@
 #!/usr/bin/env sh
 set -eu
-
-# ==============================================================
-# Live Scribe launcher for macOS
-# Works with:
-#   - Source project: .venv/bin/python + app.py
-#   - Portable app: Live Scribe.app
-#   - Portable folder: LiveScribe/LiveScribe
-# ==============================================================
+PLATFORM="macos"
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 APP_ROOT="$SCRIPT_DIR"
 
-# In the source project this file is stored inside "launchers".
 if [ -f "$SCRIPT_DIR/../app.py" ]; then
     APP_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 fi
 
 cd "$APP_ROOT"
 export LIVE_SCRIBE_HOME="$APP_ROOT"
+LS_CACHE="$APP_ROOT/.cache"
+
+mkdir -p \
+    "$LS_CACHE/temp" \
+    "$LS_CACHE/huggingface/hub" \
+    "$LS_CACHE/huggingface/xet" \
+    "$LS_CACHE/huggingface/assets" \
+    "$LS_CACHE/xdg/cache" \
+    "$LS_CACHE/xdg/config" \
+    "$LS_CACHE/xdg/data" \
+    "$LS_CACHE/pycache"
+
+export HF_HOME="$LS_CACHE/huggingface"
+export HF_HUB_CACHE="$LS_CACHE/huggingface/hub"
+export HF_XET_CACHE="$LS_CACHE/huggingface/xet"
+export HF_ASSETS_CACHE="$LS_CACHE/huggingface/assets"
+export XDG_CACHE_HOME="$LS_CACHE/xdg/cache"
+export XDG_CONFIG_HOME="$LS_CACHE/xdg/config"
+export XDG_DATA_HOME="$LS_CACHE/xdg/data"
+export TMP="$LS_CACHE/temp"
+export TEMP="$LS_CACHE/temp"
+export TMPDIR="$LS_CACHE/temp"
+export PYTHONPYCACHEPREFIX="$LS_CACHE/pycache"
+export TOKENIZERS_PARALLELISM=false
+export HF_HUB_DISABLE_TELEMETRY=1
+export HF_HUB_DISABLE_SYMLINKS_WARNING=1
 
 APP_BUNDLE_EXEC="$APP_ROOT/Live Scribe.app/Contents/MacOS/LiveScribe"
 PORTABLE_APP="$APP_ROOT/LiveScribe/LiveScribe"
@@ -37,9 +55,10 @@ make_executable "$APP_BUNDLE_EXEC"
 make_executable "$PORTABLE_APP"
 make_executable "$ROOT_APP"
 
-printf '\nStarting Live Scribe...\n\n'
+printf '\nStarting Live Scribe in portable mode...\n'
+printf 'App folder: %s\n\n' "$APP_ROOT"
 
-if [ -x "$APP_BUNDLE_EXEC" ]; then
+if [ "$PLATFORM" = "macos" ] && [ -x "$APP_BUNDLE_EXEC" ]; then
     exec "$APP_BUNDLE_EXEC"
 fi
 
@@ -58,11 +77,7 @@ fi
 printf '%s\n' \
     "Live Scribe could not be started." \
     "" \
-    "For source development, run:" \
-    "  chmod +x scripts/dev_setup_unix.sh" \
-    "  ./scripts/dev_setup_unix.sh" \
-    "" \
-    "Then run:" \
-    "  ./launchers/start_macos.sh"
+    "Keep the complete portable folder together. Do not copy only the executable." \
+    "For source development, run scripts/dev_setup_unix.sh first."
 
 exit 1

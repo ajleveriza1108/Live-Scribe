@@ -1,0 +1,66 @@
+LIVE SCRIBE — PORTABLE FLASH-DRIVE USE
+
+Live Scribe is distributed as a one-folder portable application.
+
+KEEP THE WHOLE FOLDER TOGETHER
+------------------------------
+Do not copy only LiveScribe.exe. Keep the launcher, LiveScribe folder, models,
+data, recordings, exports, dictionary, Skills, and Knowledge folders together.
+
+WINDOWS
+-------
+Double-click:
+    Start Live Scribe.bat
+
+LINUX
+-----
+Run:
+    ./start_linux.sh
+
+macOS
+-----
+Run:
+    Start Live Scribe.command
+
+FLASH-DRIVE PERFORMANCE
+-----------------------
+A fast USB 3.x flash drive or portable SSD is recommended. A slow drive can
+increase startup time, model loading, model downloads, WAV verification, and
+exports. Once a model is loaded into memory, transcription performance depends
+mostly on the PC's CPU, RAM, and compatible GPU.
+
+The first-run PC check performs a small quick-write test. Slow storage creates a
+warning but does not automatically block a model.
+
+STORAGE FORMAT
+--------------
+For Windows-only use, NTFS or exFAT is recommended. FAT32 can impose a 4 GB
+single-file limit, which can affect exceptionally long recordings or future
+larger files.
+
+SAFE REMOVAL
+------------
+Never remove the flash drive while Live Scribe is:
+- downloading or resuming a speech model
+- recording a WAV
+- verifying from WAV
+- exporting a document
+- saving a topic or vocabulary entry
+
+Close Live Scribe normally, wait for the launcher window to finish, then use the
+operating system's Eject or Safely Remove command.
+
+PORTABLE DATA
+-------------
+The following stay beside the application:
+- models
+- settings and topic profiles
+- vocabulary and pronunciation entries
+- recordings
+- exports
+- Hugging Face download cache
+- temporary files and supporting caches
+
+Live Scribe does not require installation for the packaged buyer release. Each
+operating system needs its own matching portable build; a Windows executable
+does not run natively on macOS or Linux.

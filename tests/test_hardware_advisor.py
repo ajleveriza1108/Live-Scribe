@@ -81,3 +81,28 @@ def test_downloaded_model_does_not_bypass_clear_ram_failure() -> None:
     assert capability.status == STATUS_UNAVAILABLE
     assert not capability.download_allowed
     assert "already stored locally" in capability.detail
+
+
+def test_slow_portable_drive_warns_without_hard_blocking() -> None:
+    base = snapshot(ram_gb=32, threads=16, free_gb=80, cuda=1, vram_gb=8)
+    slow = HardwareSnapshot(
+        os_name=base.os_name,
+        architecture=base.architecture,
+        cpu_name=base.cpu_name,
+        cpu_threads=base.cpu_threads,
+        total_ram_bytes=base.total_ram_bytes,
+        free_disk_bytes=base.free_disk_bytes,
+        cuda_device_count=base.cuda_device_count,
+        gpu_name=base.gpu_name,
+        gpu_vram_bytes=base.gpu_vram_bytes,
+        portable_drive_kind="Removable drive",
+        portable_likely_removable=True,
+        portable_write_mbps=5.0,
+        portable_storage_status="slow",
+        portable_storage_note="Slow portable storage.",
+    )
+    assessment = evaluate_hardware(slow)
+    assert assessment.capability("small").download_allowed
+    assert assessment.capability("large-v3").download_allowed
+    assert assessment.capability("large-v3").status == STATUS_CAUTION
+    assert assessment.recommended_model == "small"

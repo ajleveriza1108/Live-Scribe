@@ -46,6 +46,7 @@ from .models import (
     model_status,
 )
 from .paths import EXPORT_DIR, RECORDING_DIR, ensure_app_directories, new_recording_path
+from .portable import cleanup_stale_temp_files
 from .postprocess import PostSessionProcessor, PostSessionResult
 from .session import LiveTranscriptionSession, SessionEvent
 from .skill_library import SkillLibrary
@@ -1198,17 +1199,30 @@ class TaglishTranscriberApp:
             )
 
     def _on_close(self) -> None:
-        if (self.model_loading or self.model_downloading or self.finalizing) and not messagebox.askyesno(
-            "Close application",
-            "The app is still downloading or processing. Close anyway? An incomplete model download may need to be resumed.",
-        ):
-            return
         if self.model_downloading:
-            self.model_download_cancel_event.set()
+            messagebox.showinfo(
+                "Stop the download first",
+                "Click Stop Download and wait until the progress card disappears before closing "
+                "Live Scribe or removing the portable drive. Partial files will remain resumable.",
+            )
+            return
+        if self.model_loading or self.finalizing:
+            messagebox.showinfo(
+                "Please wait",
+                "Live Scribe is still loading or verifying audio. Wait for the current operation "
+                "to finish before closing or removing the portable drive.",
+            )
+            return
         if self.session is not None:
-            self.session.stop()
+            messagebox.showinfo(
+                "Stop and save first",
+                "Click Stop & Save WAV before closing Live Scribe or removing the portable drive.",
+            )
+            return
+
         self.settings = self._collect_settings()
         self.settings.save()
+        cleanup_stale_temp_files()
         self.root.destroy()
 
     def run(self) -> None:

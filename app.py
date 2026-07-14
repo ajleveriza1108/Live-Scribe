@@ -9,7 +9,8 @@ from src.taglish_transcriber import __version__
 from src.taglish_transcriber.config import model_friendly_name
 from src.taglish_transcriber.dictionary_engine import VocabularyManager
 from src.taglish_transcriber.hardware import assess_this_pc
-from src.taglish_transcriber.paths import APP_ROOT, ensure_app_directories
+from src.taglish_transcriber.paths import APP_ROOT, TEMP_DIR, ensure_app_directories
+from src.taglish_transcriber.portable import cleanup_stale_temp_files
 from src.taglish_transcriber.skill_library import SkillLibrary
 from src.taglish_transcriber.topic_profiles import TopicProfileManager
 
@@ -44,13 +45,15 @@ def run_self_test() -> int:
         vocabulary = VocabularyManager()
         skills = SkillLibrary()
         topics = TopicProfileManager()
-        hardware = assess_this_pc()
+        hardware = assess_this_pc(run_storage_test=False)
         checks["dictionary terms"] = str(len(vocabulary.terms))
         checks["Markdown skills"] = str(len(skills.skills))
         checks["Markdown knowledge"] = str(len(skills.knowledge))
         checks["topic profiles"] = str(len(topics.profiles))
         checks["PC check"] = hardware.snapshot.summary()
         checks["recommended speech quality"] = model_friendly_name(hardware.recommended_model)
+        checks["portable storage"] = hardware.snapshot.portable_drive_kind
+        checks["portable temp"] = str(TEMP_DIR)
     except Exception as exc:  # pragma: no cover - used by packaged smoke tests
         print(json.dumps({"status": "failed", "portable_home": str(APP_ROOT), "error": str(exc)}))
         return 1
@@ -77,6 +80,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    ensure_app_directories()
+    cleanup_stale_temp_files()
     args = parse_args()
     if args.version:
         print(__version__)

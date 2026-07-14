@@ -11,7 +11,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 APP_DIR_NAME = "LiveScribe"
 PRODUCT_SLUG = "Live-Scribe"
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +47,9 @@ def copy_common_files(destination: Path) -> None:
         "LICENSE.txt",
         "THIRD_PARTY_NOTICES.md",
         "RESEARCH_NOTES.md",
+        "README.md",
+        "PORTABLE_USE.txt",
+        "LANGUAGE_TEST_VIDEOS.md",
     ):
         shutil.copy2(ROOT / filename, destination / filename)
     for folder in ("Skills", "Knowledge", "dictionary", "engines"):
@@ -55,6 +58,7 @@ def copy_common_files(destination: Path) -> None:
         target = destination / folder
         target.mkdir(parents=True, exist_ok=True)
         (target / ".keep").write_text("Keep this folder with the portable app.\n", encoding="utf-8")
+    shutil.copy2(ROOT / ".live-scribe-portable", destination / ".live-scribe-portable")
 
 
 def package_release() -> Path:

@@ -13,7 +13,7 @@ buyer chooses a model for the first time.
 
 The `engines` registry also names optional researched projects such as
 DeepFilterNet, Qwen3-ASR, and whisper.cpp. They are not bundled or activated in
-v0.6.1. Before distributing any optional pack, review its code license, model
+v0.6.2. Before distributing any optional pack, review its code license, model
 license, model card, commercial-use terms, attribution requirements, binary
 redistribution requirements, and transitive dependencies.
 
