@@ -34,7 +34,7 @@ def test_formatted_docx_contains_final_review_and_live_appendix(tmp_path: Path) 
         output,
         include_timestamps=True,
         title="Team Meeting Transcript",
-        language="Auto — English + Tagalog",
+        language="English + Filipino / Taglish",
         model="small",
         microphone="Built-in microphone",
     )

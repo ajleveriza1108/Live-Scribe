@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Polish top notice layout and header"
+$CommitMessage = "Release Live Scribe v0.5.0"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)

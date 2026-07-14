@@ -8,4 +8,4 @@ The base Etsy package contains one transcription runtime, not several large AI s
 - Rule-based grammar/diction review: comments only, with no second language-model download.
 
 ## Optional researched packs
-The registry lists DeepFilterNet, Qwen3-ASR, and whisper.cpp as possible future packs. They are intentionally not bundled in v0.4.1. An optional pack should be downloaded only when the buyer chooses it and should live in this folder without replacing the core app.
+The registry lists DeepFilterNet, Qwen3-ASR, and whisper.cpp as possible future packs. They are intentionally not bundled in v0.5.0. An optional pack should be downloaded only when the buyer chooses it and should live in this folder without replacing the core app.

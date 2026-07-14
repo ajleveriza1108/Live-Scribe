@@ -27,6 +27,7 @@ for package in (
     "onnxruntime",
     "sounddevice",
     "soundcard",
+    "customtkinter",
     "_sounddevice_data",
     "docx",
     "lxml",
@@ -48,6 +49,7 @@ for distribution in (
     "onnxruntime",
     "sounddevice",
     "SoundCard",
+    "customtkinter",
     "python-docx",
     "lxml",
 ):
@@ -138,7 +140,7 @@ if sys.platform == "darwin":
             "NSMicrophoneUsageDescription": (
                 "Live Scribe needs audio-input access to transcribe microphones and routed livestream audio."
             ),
-            "CFBundleShortVersionString": "0.4.1",
-            "CFBundleVersion": "0.4.1",
+            "CFBundleShortVersionString": "0.5.0",
+            "CFBundleVersion": "0.5.0",
         },
     )

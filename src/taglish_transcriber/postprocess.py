@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .config import GRAMMAR_REVIEW_LANGUAGE_LABELS
 from .dictionary_engine import DictionaryCorrection, VocabularyManager
 from .models import TranscriptSegment, WhisperEngine, replace_segment_text
 from .noise_reduction import reduce_stationary_noise
@@ -30,11 +31,13 @@ class PostSessionProcessor:
         engine: WhisperEngine,
         *,
         language_code: str | None,
+        language_label: str,
         noise_reduction: bool,
         grammar_diction_comments: bool,
     ) -> None:
         self.engine = engine
         self.language_code = language_code
+        self.language_label = language_label
         self.use_noise_reduction = noise_reduction
         self.use_review = grammar_diction_comments
         self.vocabulary = VocabularyManager()
@@ -70,6 +73,7 @@ class PostSessionProcessor:
             transcription_source,
             language_code=self.language_code,
             hotwords=hotwords,
+            language_label=self.language_label,
         )
 
         corrected_segments: list[TranscriptSegment] = []
@@ -96,7 +100,8 @@ class PostSessionProcessor:
 
         comments: list[ReviewComment] = []
         if self.use_review:
-            comments.extend(self.reviewer.review(corrected_segments))
+            if self.language_label in GRAMMAR_REVIEW_LANGUAGE_LABELS:
+                comments.extend(self.reviewer.review(corrected_segments))
             comments.extend(dictionary_comments)
             comments.extend(compare_live_and_final(live_entries, corrected_segments))
 

@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.4.1 — BUYER QUICK GUIDE
+LIVE SCRIBE v0.5.0 — BUYER QUICK GUIDE
 ================================================
 
 WHAT IT DOES
@@ -106,3 +106,25 @@ before clicking Start Listening.
 Windows captures the selected output directly. Linux requires a PulseAudio or
 PipeWire monitor source. macOS requires a virtual audio device such as BlackHole.
 The app records the captured stream to WAV and can verify it afterward.
+
+SPEECH QUALITY CHOICES
+----------------------
+Compact — about 486 MB
+    Fastest and smallest. Useful for basic tests and older computers.
+
+Balanced — about 1.53 GB
+    Good accuracy, particularly for CPU-only computers.
+
+Best Overall — about 1.62 GB
+    Recommended balance of speed and accuracy for most buyers.
+
+Maximum Accuracy — about 3.09 GB
+    Highest quality, largest download, and slowest processing.
+
+The same downloaded quality handles English, Filipino/Tagalog, Taglish, Spanish,
+French, German, Italian, Portuguese, and Dutch.
+
+APPEARANCE
+----------
+Use the Appearance selector in the lower-left corner to choose OLED Black or
+Dirty White. The preference is saved locally.

@@ -5,7 +5,45 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.4.1** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+Version **0.5.0** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+
+## Modern interface
+
+Live Scribe now uses a modern, minimal CustomTkinter interface with:
+
+- OLED Black and Dirty White themes
+- A transcript-first Live Session workspace
+- Compact navigation for Vocabulary, Models, and Settings
+- Sticky recording and WAV-verification controls
+- A temporary model-download progress card
+- Buyer-friendly speech-quality names and download sizes
+
+## Supported language modes
+
+- English
+- Filipino / Tagalog
+- English + Filipino / Taglish
+- Spanish
+- French
+- German
+- Italian
+- Portuguese
+- Dutch
+- Auto Detect
+
+One downloaded multilingual speech model handles all supported language modes.
+
+## Buyer-friendly speech quality choices
+
+| Choice shown in Live Scribe | Approximate download | Guidance |
+|---|---:|---|
+| Compact | 486 MB | Fastest and smallest; lower accuracy |
+| Balanced | 1.53 GB | Good accuracy for CPU use |
+| Best Overall | 1.62 GB | Recommended speed and accuracy balance |
+| Maximum Accuracy | 3.09 GB | Highest quality; largest and slowest |
+
+The internal Whisper model names are intentionally hidden from normal buyers.
+
 
 ## Livestream and computer-audio transcription
 
@@ -42,7 +80,7 @@ The portable application and its dependencies are already present after setup or
 
 A different model is downloaded only when the buyer explicitly selects it and presses the download button.
 
-## What v0.4.1 does
+## What v0.5.0 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -235,7 +273,7 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.4.1` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.5.0` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 

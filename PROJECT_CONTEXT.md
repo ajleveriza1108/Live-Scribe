@@ -2,7 +2,7 @@
 
 ## Current version
 
-0.4.1
+0.5.0
 
 ## Repository
 
@@ -73,3 +73,10 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 - Speaker diarization pack for multi-speaker sessions.
 
 Optional packs must be separately downloadable, license-reviewed, checksum-verified, removable, and disabled by default.
+
+## v0.5.0 interface direction
+
+The approved buyer interface is CustomTkinter-based, with OLED Black and Dirty
+White themes, compact left navigation, transcript-first Live Session page,
+buyer-friendly speech-quality labels, and eight selected transcription languages.
+Internal model identifiers remain implementation details and are not shown to buyers.

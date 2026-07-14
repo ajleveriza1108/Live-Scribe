@@ -13,7 +13,7 @@ buyer chooses a model for the first time.
 
 The `engines` registry also names optional researched projects such as
 DeepFilterNet, Qwen3-ASR, and whisper.cpp. They are not bundled or activated in
-v0.4.1. Before distributing any optional pack, review its code license, model
+v0.5.0. Before distributing any optional pack, review its code license, model
 license, model card, commercial-use terms, attribution requirements, binary
 redistribution requirements, and transitive dependencies.
 
@@ -26,3 +26,7 @@ operating systems.
 Live Scribe uses SoundCard for system-output and livestream audio capture.
 SoundCard is distributed under the BSD 3-Clause License. Its original license
 and copyright remain with its authors.
+
+## CustomTkinter
+
+Live Scribe uses CustomTkinter for its modern cross-platform interface. CustomTkinter is distributed under the MIT License. Its original license and copyright remain with its authors.

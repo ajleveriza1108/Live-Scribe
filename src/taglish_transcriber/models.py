@@ -11,16 +11,15 @@ from typing import Any, Callable
 
 import numpy as np
 
-from .config import MODEL_OPTIONS
+from .config import (
+    MODEL_CATALOG,
+    MODEL_OPTIONS,
+    language_prompt,
+    model_friendly_name,
+    model_size_label,
+)
 from .paths import MODEL_DIR, ensure_app_directories
 
-
-AUTO_PROMPT = (
-    "Faithful verbatim transcript of a speaker who may naturally switch between "
-    "English and Tagalog or Filipino. Preserve the language actually spoken. "
-    "Keep proper names, numbers, places, technical terms, and normal punctuation. "
-    "Do not translate and do not rewrite grammar."
-)
 
 MODEL_REQUIRED_FILES = ("config.json", "model.bin", "tokenizer.json")
 MODEL_ALLOW_PATTERNS = (
@@ -32,8 +31,6 @@ MODEL_ALLOW_PATTERNS = (
 )
 
 MODEL_REPOSITORIES = {
-    "tiny": "Systran/faster-whisper-tiny",
-    "base": "Systran/faster-whisper-base",
     "small": "Systran/faster-whisper-small",
     "medium": "Systran/faster-whisper-medium",
     "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
@@ -43,12 +40,8 @@ MODEL_REPOSITORIES = {
 # Used only when the Hub does not return exact file metadata.
 # Exact metadata is requested first for normal online downloads.
 MODEL_APPROXIMATE_BYTES = {
-    "tiny": 76_000_000,
-    "base": 146_000_000,
-    "small": 490_000_000,
-    "medium": 1_540_000_000,
-    "large-v3-turbo": 1_620_000_000,
-    "large-v3": 3_100_000_000,
+    model_name: int(details["bytes"])
+    for model_name, details in MODEL_CATALOG.items()
 }
 
 
@@ -117,10 +110,12 @@ def is_model_downloaded(model_name: str) -> bool:
 
 def model_status(model_name: str) -> str:
     if model_name not in MODEL_OPTIONS:
-        return "Select a speech model, then click Download Selected Model."
+        return "Choose a speech quality option in Models."
+    friendly = model_friendly_name(model_name)
+    size = model_size_label(model_name)
     if is_model_downloaded(model_name):
-        return f"{model_name} is downloaded and ready for offline use."
-    return f"{model_name} is not downloaded yet. Click Download Selected Model."
+        return f"{friendly} ({size}) is ready for offline use."
+    return f"{friendly} ({size}) is not downloaded yet."
 
 
 def _matches_model_file(filename: str) -> bool:
@@ -426,7 +421,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.4.1", encoding="utf-8")
+    (target / ".download-complete").write_text("0.5.0", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",
@@ -547,6 +542,7 @@ class WhisperEngine:
         chunk_start: float,
         language_code: str | None,
         hotwords: str | None = None,
+        language_label: str | None = None,
     ) -> list[TranscriptSegment]:
         """Fast phrase-level pass used while the speaker is still talking."""
         if self._model is None:
@@ -567,7 +563,7 @@ class WhisperEngine:
                 "speech_pad_ms": 180,
             },
             "word_timestamps": False,
-            "initial_prompt": AUTO_PROMPT,
+            "initial_prompt": language_prompt(language_label),
         }
         if language_code:
             kwargs["language"] = language_code
@@ -581,6 +577,7 @@ class WhisperEngine:
         audio_path: Path,
         language_code: str | None,
         hotwords: str | None = None,
+        language_label: str | None = None,
     ) -> list[TranscriptSegment]:
         """Slower, more accurate pass used after the WAV recording is complete."""
         if self._model is None:
@@ -602,7 +599,7 @@ class WhisperEngine:
             },
             "word_timestamps": True,
             "hallucination_silence_threshold": 2.0,
-            "initial_prompt": AUTO_PROMPT,
+            "initial_prompt": language_prompt(language_label),
         }
         if language_code:
             kwargs["language"] = language_code

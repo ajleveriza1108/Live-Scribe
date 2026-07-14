@@ -19,6 +19,7 @@ def run_self_test() -> int:
         "python-docx": "docx",
         "sounddevice": "sounddevice",
         "SoundCard system audio": "soundcard",
+        "CustomTkinter GUI": "customtkinter",
         "faster-whisper": "faster_whisper",
         "CTranslate2": "ctranslate2",
         "PyAV": "av",

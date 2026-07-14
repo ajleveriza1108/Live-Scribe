@@ -17,5 +17,5 @@ def test_model_download_detection(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_no_model_is_selected_on_first_run() -> None:
-    assert models.model_status("").startswith("Select a speech model")
+    assert models.model_status("").startswith("Choose a speech quality")
     assert not models.is_model_downloaded("")

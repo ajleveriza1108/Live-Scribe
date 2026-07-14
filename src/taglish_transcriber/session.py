@@ -29,6 +29,7 @@ class LiveTranscriptionSession:
         engine: WhisperEngine,
         microphone_index: int | None,
         language_code: str | None,
+        language_label: str,
         rms_threshold: float,
         recording_path: Path,
         hotwords: str | None = None,
@@ -38,6 +39,7 @@ class LiveTranscriptionSession:
         self.engine = engine
         self.microphone_index = microphone_index
         self.language_code = language_code
+        self.language_label = language_label
         self.rms_threshold = rms_threshold
         self.recording_path = recording_path
         self.hotwords = hotwords
@@ -136,6 +138,7 @@ class LiveTranscriptionSession:
                     chunk_start=chunk.start,
                     language_code=self.language_code,
                     hotwords=self.hotwords,
+                    language_label=self.language_label,
                 )
             except TranscriptionError as exc:
                 self.events.put(SessionEvent(kind="error", payload=str(exc)))
