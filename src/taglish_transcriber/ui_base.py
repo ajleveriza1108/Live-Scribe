@@ -804,7 +804,7 @@ class TaglishTranscriberApp:
                 skills.asr_hotwords(),
                 priority_terms=topic_terms,
             )
-            recording_path = new_recording_path()
+            recording_path = new_recording_path(getattr(self.document, "title", ""))
             session = LiveTranscriptionSession(
                 engine=engine,
                 microphone_index=(
@@ -934,8 +934,8 @@ class TaglishTranscriberApp:
         recording_path = self.document.recording_path
         if recording_path is None or not recording_path.exists():
             messagebox.showinfo(
-                "No WAV recording",
-                "Start a live transcription session and click Stop & Save WAV first.",
+                "No source recording",
+                "Start a live session or transcribe a recorded video/audio file first.",
             )
             return
 
@@ -943,14 +943,14 @@ class TaglishTranscriberApp:
             messagebox.showwarning(
                 "Speech engine unavailable",
                 "The speech engine from this session is no longer available. "
-                "Keep Live Scribe open after stopping, then click Verify from WAV.",
+                "Keep Live Scribe open after the first transcription, then run the accuracy pass again.",
             )
             return
 
         if self.document.is_finalized:
             approved = messagebox.askyesno(
-                "Verify the WAV again",
-                "A final transcript already exists. Run the full-WAV verification again "
+                "Transcribe the source again",
+                "A final transcript already exists. Run the full-source transcription again "
                 "and replace the current final transcript and review comments?",
             )
             if not approved:
@@ -964,7 +964,7 @@ class TaglishTranscriberApp:
         self.finalizing = True
         self._set_controls_for_loading()
         self.status_var.set("Checking the full recording…")
-        self.activity_var.set("Using the saved WAV for a separate full-recording accuracy check.")
+        self.activity_var.set("Using the saved source recording for a separate full-recording accuracy check.")
         threading.Thread(
             target=self._run_finalization,
             args=(recording_path,),
@@ -980,7 +980,10 @@ class TaglishTranscriberApp:
                 self.engine,
                 language_code=LANGUAGE_LABEL_TO_CODE[self.settings.language_label],
                 language_label=self.settings.language_label,
-                noise_reduction=self.settings.noise_reduction,
+                noise_reduction=(
+                    self.settings.noise_reduction
+                    and getattr(self.document, "source_type", "live") != "imported"
+                ),
                 grammar_diction_comments=self.settings.grammar_diction_comments,
                 topic_context=getattr(self, "active_topic_context", None),
                 topic_terms=getattr(self, "active_topic_terms", ()),
@@ -1009,7 +1012,7 @@ class TaglishTranscriberApp:
         warning_text = " ".join(result.warnings)
         self.activity_var.set(
             warning_text
-            or "Final transcript, WAV recording, and grammar/diction comments are ready."
+            or "Final transcript, source recording, and review comments are ready."
         )
         self.notebook.select(1)
 
@@ -1017,10 +1020,10 @@ class TaglishTranscriberApp:
         self.finalizing = False
         self._set_controls_for_idle()
         self.status_var.set("Ready.")
-        self.activity_var.set("The final pass did not finish. The original WAV and live transcript are still safe.")
+        self.activity_var.set("The final pass did not finish. The original source and transcript are still safe.")
         messagebox.showwarning(
             "Final accuracy pass did not finish",
-            "The live transcript and original WAV were saved, but the second pass could not finish.\n\n"
+            "The transcript and original source were saved, but the second pass could not finish.\n\n"
             + (message or "Unknown processing error"),
         )
 

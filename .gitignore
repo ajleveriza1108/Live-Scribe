@@ -18,3 +18,8 @@ Thumbs.db
 recordings/*
 !recordings/.gitkeep
 dictionary/custom_terms.local.txt
+data/hardware_profile.json
+data/unfinished_session.json
+data/sessions.sqlite3
+data/sessions.sqlite3-shm
+data/sessions.sqlite3-wal

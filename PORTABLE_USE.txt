@@ -64,3 +64,14 @@ The following stay beside the application:
 Live Scribe does not require installation for the packaged buyer release. Each
 operating system needs its own matching portable build; a Windows executable
 does not run natively on macOS or Linux.
+
+SESSION RECOVERY AND LIBRARY
+----------------------------
+The local session database, recovery record, topic profiles, and transcript
+metadata remain in the portable data folder. Paths to recordings inside the
+Live Scribe folder are stored portably when possible.
+
+During a live recording, hidden five-minute WAV safety parts may temporarily
+appear. They are combined into the final WAV after Stop & Save WAV. Do not
+delete them during an active or recoverable session.
+

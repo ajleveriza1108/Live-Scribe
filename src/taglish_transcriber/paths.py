@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -56,6 +57,8 @@ PYCACHE_DIR = CACHE_DIR / "pycache"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 TOPIC_PROFILES_FILE = DATA_DIR / "topic_profiles.json"
 HARDWARE_PROFILE_FILE = DATA_DIR / "hardware_profile.json"
+SESSION_DATABASE_FILE = DATA_DIR / "sessions.sqlite3"
+RECOVERY_FILE = DATA_DIR / "unfinished_session.json"
 
 def configure_portable_environment() -> None:
     """Keep writable runtime state beside the portable application."""
@@ -110,10 +113,17 @@ def ensure_app_directories() -> None:
         ) from exc
 
 
-def new_recording_path() -> Path:
+def safe_filename_part(value: str, *, fallback: str = "live-scribe-recording") -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._ -]+", "", value).strip()
+    cleaned = re.sub(r"\s+", "-", cleaned).strip("-.")
+    return cleaned[:80] or fallback
+
+
+def new_recording_path(title: str = "") -> Path:
     ensure_app_directories()
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return RECORDING_DIR / f"live-scribe-recording_{stamp}.wav"
+    name = safe_filename_part(title)
+    return RECORDING_DIR / f"{stamp}_{name}.wav"
 
 
 def atomic_write_text(

@@ -1,4 +1,4 @@
-# Seller Release Guide — v0.6.2
+# Seller Release Guide — v0.7.0
 
 ## Repository
 
@@ -26,10 +26,10 @@ Manual workflow runs create temporary artifacts. A version tag creates a GitHub 
 
 ```bash
 git add .
-git commit -m "Add explicit model downloads and pronunciation guide"
+git commit -m "Add live productivity and recorded-media transcription"
 git push origin main
-git tag v0.6.2
-git push origin v0.6.2
+git tag v0.7.0
+git push origin v0.7.0
 ```
 
 ## Buyer archive requirements
@@ -64,3 +64,23 @@ Do not include downloaded model weights in the normal base edition.
 ## Etsy delivery
 
 Use a short Etsy download file containing buyer instructions and a private release link when the platform file-size limit is too small. Tell buyers to keep their original ZIP and a second backup. Do not promise perfect transcription or complete noise cancellation.
+
+## v0.7.0 release checks
+
+Before selling a build, test:
+
+- Start, pause, resume, stop, and full WAV verification
+- No-audio and clipping notices
+- Floating captions
+- Transcript edit, speaker label, marker, checked state, and timestamp playback
+- Session library search and reopen
+- Interruption recovery from a forced application close
+- Five-minute recording rollover and final WAV combination
+- Model removal and partial-download cleanup
+- MP4, MKV, MP3, WAV, M4A, FLAC, and WebM transcription
+- VTT, CSV, Markdown, DOCX, TXT, and SRT exports
+- Flash-drive use on a different drive letter
+
+Do not advertise every codec as guaranteed on every operating system. State that
+support depends on the codec being readable by the included PyAV build.
+

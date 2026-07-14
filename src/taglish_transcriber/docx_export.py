@@ -18,6 +18,7 @@ class EntryLike(Protocol):
     start: float
     end: float
     text: str
+    speaker: str
 
 
 class ReviewLike(Protocol):
@@ -136,6 +137,10 @@ def _add_transcript_section(
             timestamp.bold = True
             timestamp.font.size = Pt(9)
             timestamp.font.color.rgb = RGBColor(91, 99, 112)
+        speaker = getattr(entry, "speaker", "")
+        if speaker:
+            speaker_run = paragraph.add_run(f"{speaker}: ")
+            speaker_run.bold = True
         paragraph.add_run(entry.text)
 
 
@@ -205,9 +210,9 @@ def save_formatted_docx(
 
     properties = document.core_properties
     properties.title = info.title
-    properties.subject = "English, Tagalog, and Taglish transcription"
+    properties.subject = "Offline multilingual transcription"
     properties.author = "Live Scribe"
-    properties.keywords = "transcription, English, Tagalog, Filipino, Taglish, WAV"
+    properties.keywords = "transcription, multilingual, offline, captions, WAV, video, audio"
     properties.comments = "Created locally by Live Scribe."
 
     header = section.header.paragraphs[0]
@@ -226,7 +231,7 @@ def save_formatted_docx(
     subtitle = document.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     subtitle.paragraph_format.space_after = Pt(14)
-    subtitle_run = subtitle.add_run("English • Tagalog • Taglish")
+    subtitle_run = subtitle.add_run("Offline multilingual transcript")
     subtitle_run.font.size = Pt(10)
     subtitle_run.font.color.rgb = RGBColor(90, 90, 90)
 

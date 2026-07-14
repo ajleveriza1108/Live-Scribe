@@ -58,7 +58,7 @@ class PostSessionProcessor:
         enhanced_path: Path | None = None
         transcription_source = recording_path
 
-        if self.use_noise_reduction:
+        if self.use_noise_reduction and recording_path.suffix.casefold() == ".wav":
             enhanced_path = recording_path.with_name(recording_path.stem + "_enhanced.wav")
             try:
                 result = reduce_stationary_noise(recording_path, enhanced_path)
@@ -71,6 +71,11 @@ class PostSessionProcessor:
                     "Noise reduction could not be applied, so the original WAV was used. "
                     f"Details: {str(exc).strip() or 'unknown audio processing error'}"
                 )
+        elif self.use_noise_reduction:
+            warnings.append(
+                "Noise reduction is available for Live Scribe WAV recordings. "
+                "The imported media file was transcribed without changing its audio."
+            )
 
         hotwords = self.vocabulary.hotwords(
             self.skills.asr_hotwords(),

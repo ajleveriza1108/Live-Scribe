@@ -1,189 +1,78 @@
-LIVE SCRIBE v0.6.2 — BUYER QUICK GUIDE
-================================================
+LIVE SCRIBE v0.7.0 — BUYER GUIDE
 
-WHAT IT DOES
+WHAT LIVE SCRIBE DOES
+---------------------
+Live Scribe transcribes live microphone audio, computer audio, livestreams,
+Zoom/Google Meet sessions, and recorded video or audio files. It runs locally
+after one speech model has been downloaded.
+
+No additional LLM is required for pause/resume, session recovery, topic
+profiles, floating captions, transcript editing, speaker labels, markers,
+session search, or storage cleanup.
+
+FIRST USE
+---------
+1. Keep the complete portable folder together.
+2. Start Live Scribe through the platform launcher.
+3. Review the local PC and portable-drive check.
+4. Choose one buyer-friendly speech quality.
+5. Download it once. A stopped download can be resumed later.
+6. Choose the language and topic profile.
+
+LIVE SESSION
 ------------
-Live Scribe listens to a microphone and creates English, Tagalog/
-Filipino, or Taglish text. It saves the original audio as WAV while the
-speaker talks. After Stop, it can clean steady background noise, transcribe
-the complete WAV again, compare both transcription passes, and prepare a
-formatted Word report with review comments.
+1. Enter a session title.
+2. Choose Microphone or Computer audio / livestream.
+3. Confirm that the audio meter shows a usable signal.
+4. Click Start Listening.
+5. Use Pause and Resume when needed.
+6. Click Stop & Save WAV.
+7. Click Verify from WAV for the separate full-recording pass.
 
-FIRST START AND MODEL DOWNLOAD
-------------------------------
-1. Extract the complete ZIP to Documents, Desktop, or a writable portable SSD.
-2. Keep every folder together.
-3. Open the launcher for your operating system:
-   Windows: Start Live Scribe.bat
-   macOS:   Start Live Scribe.command
-   Linux:   start_linux.sh
-4. Permit microphone access when the operating system asks.
-5. The app opens without downloading a model.
-6. Select a speech model inside the app. Start with small.
-7. Click Download Selected Model.
-8. Keep the app open and connected until the one-time download finishes.
-9. Start Listening becomes available after the model is ready.
-10. Later sessions reuse that downloaded model offline.
-
-The portable app dependencies are already included. A model is downloaded only
-when you select it and press the download button.
-
-CURRENT LANGUAGE SUPPORT
-------------------------
-This edition is optimized for English, Tagalog/Filipino, and Taglish. More
-languages are planned for future versions, but are not enabled in this edition.
-
-NORMAL SESSION
---------------
-1. The app automatically tries the system default microphone.
-2. Use Detect if the microphone list changes.
-3. Press Start Listening.
-4. Speak naturally. Rough text appears after short pauses.
-5. Press Stop & Save WAV when the speaker is finished.
-6. Keep the app open while it checks the complete WAV.
-7. Review the Final Transcript and Review Comments tabs.
-8. Save DOCX, TXT, or SRT.
-
-DIFFICULT WORDS AND NAMES
--------------------------
-Open Vocabulary & Pronunciation inside the app. Enter:
-- the correct written spelling; and
-- one or more ways the word may sound or be mistakenly transcribed.
-
-Example:
-Correct spelling: Project Lakbay
-Sounds like: project lock buy, project lak bai
-
-The app uses these forms as recognition hints. During the final WAV pass, an
-exact matched alias may be corrected to the written form and listed in Review
-Comments. Use distinctive aliases and avoid very short common words.
-
-IMPORTANT FILES
----------------
-recordings/  Original and optional enhanced WAV files.
-exports/     Saved Word, text, and subtitle files.
-models/      Downloaded speech models. Keep these to avoid downloading again.
-dictionary/  Names, special terms, pronunciation aliases, and replacements.
-Skills/      Small transcription and review instruction files.
-Knowledge/   Compact English, Tagalog, Taglish, and accuracy references.
-
-NOISE AND MICROPHONE TIPS
--------------------------
-- Put the microphone near the speaker.
-- Avoid music, televisions, echoes, and several people talking together.
-- Built-in cleanup is best for steady fan or air-conditioner noise.
-- Noise reduction cannot reconstruct words that were not recorded clearly.
-- The original WAV is always kept and is the best source for final checking.
-
-ACCURACY NOTICE
----------------
-AI-assisted transcription can make mistakes. Always review the final
-transcript and replay the saved WAV before relying on names, dates, numbers,
-amounts, addresses, quotations, legal/medical wording, uncommon terms, or
-other important information. Grammar and diction comments are suggestions,
-not proof that the transcription is correct.
-
-PORTABILITY
------------
-Move the complete extracted folder, not only the launcher. Stop the app before
-unplugging an external drive. Keep a backup of important recordings, documents,
-models, dictionary files, and the original purchased ZIP.
-
-
-MODEL DOWNLOAD PROGRESS
+RECORDED VIDEO OR AUDIO
 -----------------------
-A progress bar appears automatically after you approve a model download. It
-shows the downloaded size, total size, percentage, speed, and approximate time
-remaining. Keep Live Scribe open until the bar disappears and the app confirms
-that the model is ready.
+Click Transcribe File and choose a supported recording such as:
 
-LIVESTREAM / COMPUTER AUDIO
----------------------------
-Choose "Computer audio / livestream" under "Listen to", click Detect, and choose
-the speakers or headphones that are playing the stream. Start the livestream
-before clicking Start Listening.
+MP4, MKV, MOV, AVI, WebM, MP3, WAV, M4A, AAC, FLAC, OGG, OPUS, WMA,
+AIFF, ALAC, or another format listed in the file chooser.
 
-Windows captures the selected output directly. Linux requires a PulseAudio or
-PipeWire monitor source. macOS requires a virtual audio device such as BlackHole.
-The app records the captured stream to WAV and can verify it afterward.
+Video images are ignored. Live Scribe transcribes only the audio track.
 
-SPEECH QUALITY CHOICES
-----------------------
-Compact — about 486 MB
-    Fastest and smallest. Useful for basic tests and older computers.
+TRANSCRIPT EDITOR
+-----------------
+Select a transcript line to:
 
-Balanced — about 1.53 GB
-    Good accuracy, particularly for CPU-only computers.
+- edit text
+- set or remove a speaker
+- play from its timestamp
+- mark Important, Action Item, or Question
+- mark the line as checked
 
-Best Overall — about 1.62 GB
-    Recommended balance of speed and accuracy for most buyers.
+Press F11 for floating captions. Ctrl+1, Ctrl+2, and Ctrl+3 can assign the
+selected line to Speaker 1, Speaker 2, or Speaker 3.
 
-Maximum Accuracy — about 3.09 GB
-    Highest quality, largest download, and slowest processing.
-
-The same downloaded quality handles English, Filipino/Tagalog, Taglish, Spanish,
-French, German, Italian, Portuguese, and Dutch.
-
-APPEARANCE
-----------
-Use the Appearance selector in the lower-left corner to choose OLED Black or
-Dirty White. The preference is saved locally.
-
-STOPPING AND RESUMING A MODEL DOWNLOAD
-----------------------------------------
-While a speech-quality model is downloading, click Stop Download to pause it safely.
-Wait for the progress card to disappear before closing Live Scribe. Partial files
-remain in the portable models folder. Choose the same quality and click Download
-Selected Quality later to resume from the saved progress.
-
-VOCABULARY MANAGER
-------------------
-Open Vocabulary Manager to add new entries, select and edit existing entries, or
-remove entries that are no longer needed. Changes apply to the next session.
-
-TOPIC PROFILES
+SAVED SESSIONS
 --------------
-Before starting, choose the closest Topic profile on the Live Session page.
-The included profiles cover everyday conversations, office meetings, classes,
-Zoom/Google Meet calls, interviews, sermons, livestreams, programming,
-e-commerce, and news.
+The Sessions page searches local saved sessions by title, transcript, topic,
+speaker, language, and marker. Deleting a library entry does not delete the
+original recording or exports.
 
-Open Topics in the sidebar to add, edit, or remove profiles. Enter a short
-description and important names or terms. The profile is saved locally and can
-be reused later. It does not require another LLM or model download.
+RECOVERY
+--------
+If Live Scribe or the computer is interrupted, the next launch may offer to
+recover an unfinished transcript and available WAV safety parts.
 
-A Topic Profile is a recognition hint only. Always verify important names,
-numbers, dates, quotations, and decisions against the saved WAV.
+PORTABLE USE
+------------
+A fast USB 3.x flash drive or portable SSD is recommended. Keep the whole
+folder together and never remove the drive during recording, model download,
+transcription, verification, export, or saving.
 
-FIRST-RUN PC CHECK
-------------------
-Live Scribe checks RAM, CPU threads, free model storage, processor architecture,
-and compatible NVIDIA GPU access before offering model downloads. The check is
-performed locally. Hardware information is not uploaded.
+EXPORTS
+-------
+DOCX, TXT, SRT, VTT, CSV, Markdown, and clipboard copy are available.
 
-Speech qualities are marked Recommended, May run slowly, or Unavailable.
-Unavailable models are removed from the download selector. A model remains
-available with a warning when Live Scribe is not certain that it will fail.
-
-Open Models and click "Check This PC Again" after moving the portable folder to
-another computer, adding RAM, freeing storage, or changing GPU setup.
-
-This is a conservative estimate, not a speed or accuracy guarantee. Close
-memory-heavy programs during transcription and always verify important content
-against the saved WAV.
-
-PORTABLE FLASH-DRIVE USE
-------------------------
-Keep the whole Live Scribe folder together. Do not copy only the executable.
-Use a fast USB 3.x flash drive or portable SSD for the smoothest startup and
-model loading.
-
-The app keeps models, settings, recordings, exports, topic profiles, vocabulary,
-download cache, and temporary files in the portable folder.
-
-Do not remove the drive while downloading, recording, verifying, exporting, or
-saving. Close Live Scribe normally and safely eject the drive afterward.
-
-The first-run PC check includes a small portable-drive speed test. Slow storage
-creates a warning but does not automatically disable a model.
-
+IMPORTANT ACCURACY NOTICE
+-------------------------
+Always verify names, numbers, dates, amounts, quotations, technical terms, and
+other important information against the original WAV, video, or audio source.

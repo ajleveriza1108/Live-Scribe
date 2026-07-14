@@ -2,7 +2,7 @@
 
 ## Current version
 
-0.6.2
+0.7.0
 
 ## Repository
 
@@ -10,7 +10,7 @@
 
 ## Product definition
 
-A portable, cross-platform, local-first desktop transcription product for English, Tagalog/Filipino, and natural Taglish. The buyer package bundles application dependencies but downloads selected ASR model weights only once.
+A portable, cross-platform, local-first desktop product for live and recorded-media transcription in eight selected languages, plus dedicated Taglish handling. The buyer package bundles application dependencies but downloads selected ASR model weights only once.
 
 ## Non-negotiable product rules
 
@@ -26,7 +26,7 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 10. Custom vocabulary must be editable without changing Python code.
 11. Models are not bundled in the base Etsy package.
 12. Launching or starting a session must never silently download a model; model downloads require an explicit in-app button press.
-13. The current language selector remains limited to English, Tagalog/Filipino, and Taglish until other languages are tested.
+13. The advertised language selector remains limited to the eight tested languages, dedicated Taglish mode, and Auto Detect.
 14. Difficult terms use editable pronunciation aliases and controlled review comments.
 15. Buyer-facing errors remain calm, nontechnical, and actionable.
 16. No accuracy guarantee; preserve evidence and disclose uncertainty.
@@ -62,7 +62,7 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 8. Run full-file Faster-Whisper with VAD, word timestamps, hotwords, and stronger decoding settings.
 9. Apply pronunciation aliases and explicit dictionary replacements.
 10. Generate review comments and compare live versus final text.
-11. Export final TXT/SRT/DOCX; optionally include live appendix.
+11. Export DOCX, TXT, SRT, VTT, CSV, or Markdown; optionally include the live appendix.
 
 ## Future optional packs
 
@@ -134,4 +134,18 @@ failures remain the only automatic blockers.
 Settings and vocabulary JSON writes are atomic. The GUI prevents normal closure
 during model download, recording, model loading, and WAV verification to reduce
 the risk of corruption if a removable drive is unplugged.
+
+## v0.7.0 productivity and recorded-media release
+
+The project now supports direct transcription of common recorded video and audio
+through Faster-Whisper/PyAV. The media is not copied or modified; video images
+are ignored.
+
+Lightweight features include pause/resume, audio health events, floating
+captions, transcript editing, manual speakers, timestamp playback, markers,
+SQLite session search, throttled recovery, five-minute WAV safety parts, and a
+portable storage manager. No new LLM or large AI model is included.
+
+Portable recordings and enhanced WAV paths are serialized relative to APP_ROOT
+when possible so saved sessions survive flash-drive letter or mount changes.
 

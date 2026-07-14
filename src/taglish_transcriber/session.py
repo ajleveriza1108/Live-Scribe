@@ -79,6 +79,7 @@ class LiveTranscriptionSession:
         )
         self._started = False
         self._stopping = False
+        self._paused = False
 
     def _on_audio_event(self, level: str, message: str) -> None:
         self.events.put(SessionEvent(kind=level, payload=message))
@@ -107,6 +108,24 @@ class LiveTranscriptionSession:
                 },
             )
         )
+
+    @property
+    def is_paused(self) -> bool:
+        return self._paused
+
+    def pause(self) -> None:
+        if not self._started or self._stopping or self._paused:
+            return
+        self._paused = True
+        self.capture.set_paused(True)
+        self.events.put(SessionEvent(kind="paused"))
+
+    def resume(self) -> None:
+        if not self._started or self._stopping or not self._paused:
+            return
+        self._paused = False
+        self.capture.set_paused(False)
+        self.events.put(SessionEvent(kind="resumed"))
 
     def stop(self) -> None:
         if not self._started or self._stopping:

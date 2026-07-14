@@ -4,6 +4,7 @@ import collections
 import queue
 import sys
 import threading
+import time
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -308,16 +309,99 @@ def downmix_to_mono(samples: np.ndarray) -> np.ndarray:
     return array.mean(axis=1, dtype=np.float32)
 
 
-class WavRecorder(threading.Thread):
-    """Write audio blocks to a PCM WAV file away from capture callbacks."""
+def recording_parts_dir(path: Path) -> Path:
+    return path.with_name(path.stem + ".parts")
 
-    def __init__(self, path: Path, sample_rate: float) -> None:
+
+def list_recording_parts(path: Path) -> list[Path]:
+    folder = recording_parts_dir(path)
+    if not folder.is_dir():
+        return []
+    return sorted(folder.glob("part_*.wav"))
+
+
+def combine_wav_parts(parts: list[Path], output_path: Path) -> int:
+    """Combine compatible mono PCM WAV parts without loading them into memory."""
+    valid: list[Path] = []
+    parameters: tuple[int, int, int] | None = None
+
+    for part in parts:
+        try:
+            with wave.open(str(part), "rb") as wav_file:
+                current = (
+                    wav_file.getnchannels(),
+                    wav_file.getsampwidth(),
+                    wav_file.getframerate(),
+                )
+                if parameters is None:
+                    parameters = current
+                if current != parameters:
+                    continue
+            valid.append(part)
+        except (OSError, wave.Error):
+            continue
+
+    if not valid or parameters is None:
+        raise RuntimeError("No recoverable WAV recording parts were found.")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output_path.with_suffix(output_path.suffix + ".combining")
+    with wave.open(str(temporary), "wb") as output:
+        output.setnchannels(parameters[0])
+        output.setsampwidth(parameters[1])
+        output.setframerate(parameters[2])
+        for part in valid:
+            with wave.open(str(part), "rb") as source:
+                while True:
+                    frames = source.readframes(65_536)
+                    if not frames:
+                        break
+                    output.writeframesraw(frames)
+    temporary.replace(output_path)
+    return len(valid)
+
+
+def recover_rolling_recording(path: Path) -> bool:
+    """Recover a final WAV from closed rollover parts after an interrupted session."""
+    if path.is_file():
+        return True
+    parts = list_recording_parts(path)
+    if not parts:
+        return False
+    try:
+        combine_wav_parts(parts, path)
+        if path.is_file():
+            folder = recording_parts_dir(path)
+            for part in parts:
+                part.unlink(missing_ok=True)
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+            return True
+        return False
+    except Exception:
+        return False
+
+
+class WavRecorder(threading.Thread):
+    """Write crash-contained WAV parts and combine them on a normal stop."""
+
+    def __init__(
+        self,
+        path: Path,
+        sample_rate: float,
+        *,
+        rollover_seconds: float = 5 * 60,
+    ) -> None:
         super().__init__(name="wav-recorder", daemon=True)
         self.path = path
         self.sample_rate = int(round(sample_rate))
+        self.rollover_seconds = max(60.0, float(rollover_seconds))
         self.queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=600)
         self.error: str | None = None
         self.completed = threading.Event()
+        self.part_paths: list[Path] = []
 
     def submit(self, samples: np.ndarray) -> bool:
         try:
@@ -331,44 +415,132 @@ class WavRecorder(threading.Thread):
             self.queue.put_nowait(None)
         except queue.Full:
             self.queue.put(None)
-        self.join(timeout=15)
+        self.join(timeout=30)
+
+    def _part_path(self, index: int) -> Path:
+        folder = recording_parts_dir(self.path)
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f"part_{index:04d}.wav"
+
+    def _open_part(self, index: int):
+        part_path = self._part_path(index)
+        wav_file = wave.open(str(part_path), "wb")
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(self.sample_rate)
+        self.part_paths.append(part_path)
+        return wav_file
+
+    def _combine_and_clean(self) -> None:
+        combine_wav_parts(self.part_paths, self.path)
+        folder = recording_parts_dir(self.path)
+        try:
+            for part in self.part_paths:
+                part.unlink(missing_ok=True)
+            folder.rmdir()
+        except OSError:
+            # The final WAV is already safe; leftover parts can be removed by storage cleanup.
+            pass
 
     def run(self) -> None:
+        wav_file = None
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            with wave.open(str(self.path), "wb") as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(2)
-                wav_file.setframerate(self.sample_rate)
-                while True:
-                    samples = self.queue.get()
-                    if samples is None:
-                        break
-                    pcm = np.clip(samples, -1.0, 1.0)
-                    pcm = (pcm * 32767.0).astype("<i2", copy=False)
-                    wav_file.writeframesraw(pcm.tobytes())
+            frames_per_part = max(
+                self.sample_rate * 60,
+                int(round(self.sample_rate * self.rollover_seconds)),
+            )
+            current_frames = 0
+            part_index = 1
+            wav_file = self._open_part(part_index)
+
+            while True:
+                samples = self.queue.get()
+                if samples is None:
+                    break
+                pcm = np.clip(samples, -1.0, 1.0)
+                pcm = (pcm * 32767.0).astype("<i2", copy=False)
+                wav_file.writeframesraw(pcm.tobytes())
+                current_frames += int(pcm.size)
+
+                if current_frames >= frames_per_part:
+                    wav_file.close()
+                    wav_file = None
+                    part_index += 1
+                    current_frames = 0
+                    wav_file = self._open_part(part_index)
+
+            if wav_file is not None:
+                wav_file.close()
+                wav_file = None
+            self._combine_and_clean()
         except Exception as exc:  # pragma: no cover - hardware/filesystem dependent
             self.error = str(exc).strip() or "unknown WAV recording error"
         finally:
+            if wav_file is not None:
+                try:
+                    wav_file.close()
+                except Exception:
+                    pass
             self.completed.set()
 
 
 class _CaptureOutputMixin:
     output_queue: queue.Queue[AudioBlock | None]
     recording_path: Path
-    event_callback: Callable[[str, str], None] | None
+    event_callback: Callable[[str, Any], None] | None
     _sample_cursor: int
     _source_rate: float
     _recorder: WavRecorder | None
     _end_sent: bool
+    _paused: threading.Event
+    _last_level_emit: float
+    _quiet_since: float | None
 
-    def _event(self, level: str, message: str) -> None:
+    def _event(self, level: str, message: Any) -> None:
         if self.event_callback:
             self.event_callback(level, message)
+
+    def set_paused(self, paused: bool) -> None:
+        if paused:
+            self._paused.set()
+        else:
+            self._paused.clear()
+            self._quiet_since = None
+
+    def _report_audio_level(self, raw_mono: np.ndarray) -> None:
+        now = time.monotonic()
+        if now - self._last_level_emit < 0.15:
+            return
+        self._last_level_emit = now
+
+        rms = float(np.sqrt(np.mean(np.square(raw_mono), dtype=np.float64)))
+        peak = float(np.max(np.abs(raw_mono))) if raw_mono.size else 0.0
+        if rms < 0.0015:
+            if self._quiet_since is None:
+                self._quiet_since = now
+        else:
+            self._quiet_since = None
+
+        quiet_seconds = 0.0 if self._quiet_since is None else now - self._quiet_since
+        self._event(
+            "audio_level",
+            {
+                "rms": rms,
+                "peak": peak,
+                "clipping": peak >= 0.98,
+                "quiet_seconds": quiet_seconds,
+                "paused": self._paused.is_set(),
+            },
+        )
 
     def _submit_samples(self, raw_mono: np.ndarray) -> None:
         raw_mono = np.asarray(raw_mono, dtype=np.float32).reshape(-1)
         if raw_mono.size == 0:
+            return
+
+        self._report_audio_level(raw_mono)
+        if self._paused.is_set():
             return
 
         if self._recorder is not None and not self._recorder.submit(raw_mono):
@@ -432,6 +604,9 @@ class MicrophoneCapture(_CaptureOutputMixin):
         self._end_sent = False
         self.selected_input_name = "Default input"
         self.selected_microphone_name = self.selected_input_name
+        self._paused = threading.Event()
+        self._last_level_emit = 0.0
+        self._quiet_since: float | None = None
 
     def start(self) -> None:
         try:
@@ -517,6 +692,9 @@ class SystemAudioCapture(_CaptureOutputMixin):
         self._soundcard_context = None
         self._soundcard_recorder = None
         self.selected_input_name = "Computer audio"
+        self._paused = threading.Event()
+        self._last_level_emit = 0.0
+        self._quiet_since: float | None = None
 
     def start(self) -> None:
         try:

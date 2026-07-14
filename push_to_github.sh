@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 repository_url="https://github.com/ajleveriza1108/Live-Scribe.git"
-commit_message="Harden portable flash-drive operation"
+commit_message="Add live productivity and recorded-media transcription"
 
 if ! command -v git >/dev/null 2>&1; then
   echo "Git is not installed. Install Git, then run this script again."

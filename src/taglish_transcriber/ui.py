@@ -108,7 +108,7 @@ class ModernTabView(ctk.CTkTabview):
         self.set(value)
 
 
-class TaglishTranscriberApp(_Controller):
+class _ModernBaseApp(_Controller):
     """Modern minimal interface over the proven Live Scribe controller."""
 
     def __init__(self) -> None:
@@ -247,7 +247,7 @@ class TaglishTranscriberApp(_Controller):
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
         self.sidebar.grid_columnconfigure(0, weight=1)
-        self.sidebar.grid_rowconfigure(7, weight=1)
+        self.sidebar.grid_rowconfigure(8, weight=1)
 
         ctk.CTkLabel(
             self.sidebar,
@@ -266,6 +266,7 @@ class TaglishTranscriberApp(_Controller):
             ("Live Session", "●"),
             ("Vocabulary", "Aa"),
             ("Topics", "◎"),
+            ("Sessions", "▤"),
             ("Models", "↓"),
             ("Settings", "⚙"),
         )
@@ -286,7 +287,7 @@ class TaglishTranscriberApp(_Controller):
             self.nav_buttons[name] = button
 
         theme_holder = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        theme_holder.grid(row=8, column=0, sticky="sew", padx=16, pady=(12, 10))
+        theme_holder.grid(row=9, column=0, sticky="sew", padx=16, pady=(12, 10))
         theme_holder.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             theme_holder,
@@ -311,10 +312,10 @@ class TaglishTranscriberApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.6.2",
+            text="Version 0.7.0",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
-        ).grid(row=9, column=0, sticky="w", padx=22, pady=(0, 18))
+        ).grid(row=10, column=0, sticky="w", padx=22, pady=(0, 18))
 
         self.main_shell = ctk.CTkFrame(
             self.root,
@@ -374,7 +375,7 @@ class TaglishTranscriberApp(_Controller):
         self._page_header(
             header,
             "Live Session",
-            "Transcribe a microphone or computer livestream and keep the original WAV.",
+            "Transcribe live audio or choose an existing video/audio recording.",
         )
         self.status_chip = ctk.CTkLabel(
             header,
@@ -422,6 +423,7 @@ class TaglishTranscriberApp(_Controller):
         self.notice_frame.bind("<Configure>", self._update_notice_wraplength)
 
         input_card = self._card(page, row=2, column=0, sticky="ew", padx=24, pady=(0, 12))
+        self.input_card = input_card
         input_card.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(
             input_card,
@@ -528,6 +530,7 @@ class TaglishTranscriberApp(_Controller):
         transcript_card.grid_rowconfigure(1, weight=1)
         transcript_card.grid_columnconfigure(0, weight=1)
         status_row = ctk.CTkFrame(transcript_card, fg_color="transparent")
+        self.status_row = status_row
         status_row.grid(row=0, column=0, sticky="ew", padx=16, pady=(12, 4))
         status_row.grid_columnconfigure(1, weight=1)
         self.recording_dot = ctk.CTkLabel(
@@ -561,6 +564,7 @@ class TaglishTranscriberApp(_Controller):
         self.review_text = self._create_text_tab("Review comments")
 
         action_bar = self._card(page, row=4, column=0, sticky="ew", padx=24, pady=(0, 12))
+        self.action_bar = action_bar
         action_bar.grid_columnconfigure(7, weight=1)
         self.start_button = ctk.CTkButton(
             action_bar,
@@ -910,6 +914,7 @@ class TaglishTranscriberApp(_Controller):
         )
 
         hardware_card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
+        self.hardware_card = hardware_card
         hardware_card.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             hardware_card,
@@ -1838,3 +1843,13 @@ class TaglishTranscriberApp(_Controller):
             )
             return
         self.activity_var.set(f"Saved formatted DOCX: {path}")
+
+
+
+from .productivity_features import ProductivityFeaturesMixin
+
+
+class TaglishTranscriberApp(ProductivityFeaturesMixin, _ModernBaseApp):
+    """Live Scribe modern GUI with lightweight productivity and recovery tools."""
+
+    pass

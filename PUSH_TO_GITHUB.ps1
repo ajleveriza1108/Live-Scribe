@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Harden portable flash-drive operation"
+$CommitMessage = "Add live productivity and recorded-media transcription"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)
