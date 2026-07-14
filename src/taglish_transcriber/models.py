@@ -79,8 +79,21 @@ class ModelLoadError(RuntimeError):
     """Raised when a local transcription model cannot be prepared."""
 
 
+class ModelDownloadCancelled(RuntimeError):
+    """Raised when the user safely stops an active model download."""
+
+
 class TranscriptionError(RuntimeError):
     """Raised when speech audio cannot be transcribed."""
+
+
+def _raise_if_download_cancelled(
+    cancel_event: threading.Event | None,
+) -> None:
+    if cancel_event is not None and cancel_event.is_set():
+        raise ModelDownloadCancelled(
+            "The model download was stopped. Partial files were kept and can be resumed."
+        )
 
 
 def _validate_model_name(model_name: str) -> str:
@@ -192,11 +205,13 @@ class _ProgressTracker:
         total_bytes: int,
         total_is_estimate: bool,
         callback: Callable[[ModelDownloadProgress], None] | None,
+        cancel_event: threading.Event | None = None,
     ) -> None:
         self.model_name = model_name
         self.total_bytes = max(0, int(total_bytes))
         self.total_is_estimate = total_is_estimate
         self.callback = callback
+        self.cancel_event = cancel_event
         self._lock = threading.Lock()
         self._started_at = time.monotonic()
         self._last_time = self._started_at
@@ -204,6 +219,9 @@ class _ProgressTracker:
         self._max_bytes = 0
         self._smoothed_speed = 0.0
         self._last_emit = 0.0
+
+    def check_cancelled(self) -> None:
+        _raise_if_download_cancelled(self.cancel_event)
 
     def emit(
         self,
@@ -213,6 +231,7 @@ class _ProgressTracker:
         message: str = "",
         force: bool = False,
     ) -> None:
+        self.check_cancelled()
         if self.callback is None:
             return
 
@@ -267,11 +286,12 @@ class _ProgressTracker:
 
 
 def _make_tqdm_class(tracker: _ProgressTracker):
-    """Create a silent tqdm-compatible class that forwards byte progress."""
+    """Create a silent tqdm-compatible class with progress and stop support."""
     from tqdm.auto import tqdm
 
     class CallbackTqdm(tqdm):
         def __init__(self, *args, **kwargs):
+            tracker.check_cancelled()
             self._live_scribe_byte_bar = kwargs.get("unit") == "B"
             kwargs["disable"] = True
             super().__init__(*args, **kwargs)
@@ -282,15 +302,18 @@ def _make_tqdm_class(tracker: _ProgressTracker):
                 )
 
         def update(self, n=1):
+            tracker.check_cancelled()
             result = super().update(n)
             if self._live_scribe_byte_bar:
                 tracker.emit(
                     phase="downloading",
                     downloaded_bytes=int(getattr(self, "n", 0) or 0),
                 )
+            tracker.check_cancelled()
             return result
 
         def refresh(self, *args, **kwargs):
+            tracker.check_cancelled()
             result = super().refresh(*args, **kwargs)
             if getattr(self, "_live_scribe_byte_bar", False):
                 total = int(getattr(self, "total", 0) or 0)
@@ -301,6 +324,7 @@ def _make_tqdm_class(tracker: _ProgressTracker):
                     phase="downloading",
                     downloaded_bytes=int(getattr(self, "n", 0) or 0),
                 )
+            tracker.check_cancelled()
             return result
 
     return CallbackTqdm
@@ -309,8 +333,10 @@ def _make_tqdm_class(tracker: _ProgressTracker):
 def download_model_once(
     model_name: str,
     progress_callback: Callable[[ModelDownloadProgress], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> Path:
-    """Download one explicitly selected model with live in-app progress."""
+    """Download one selected model, preserving partial files when stopped."""
+    _raise_if_download_cancelled(cancel_event)
     model_name = _validate_model_name(model_name)
     ensure_app_directories()
     target = local_model_path(model_name)
@@ -341,6 +367,7 @@ def download_model_once(
         )
 
     exact_total = _remote_model_size(repo_id)
+    _raise_if_download_cancelled(cancel_event)
     total_is_estimate = exact_total is None
     total_bytes = exact_total or MODEL_APPROXIMATE_BYTES.get(model_name, 0)
 
@@ -349,6 +376,7 @@ def download_model_once(
         total_bytes=total_bytes,
         total_is_estimate=total_is_estimate,
         callback=progress_callback,
+        cancel_event=cancel_event,
     )
 
     initial_bytes = _local_downloaded_bytes(target)
@@ -367,10 +395,15 @@ def download_model_once(
 
     def monitor_local_files() -> None:
         while not monitor_stop.wait(0.25):
-            tracker.emit(
-                phase="downloading",
-                downloaded_bytes=_local_downloaded_bytes(target),
-            )
+            if cancel_event is not None and cancel_event.is_set():
+                return
+            try:
+                tracker.emit(
+                    phase="downloading",
+                    downloaded_bytes=_local_downloaded_bytes(target),
+                )
+            except ModelDownloadCancelled:
+                return
 
     monitor = threading.Thread(
         target=monitor_local_files,
@@ -380,6 +413,7 @@ def download_model_once(
     monitor.start()
 
     try:
+        _raise_if_download_cancelled(cancel_event)
         from huggingface_hub import snapshot_download
 
         downloaded_path = Path(
@@ -391,7 +425,13 @@ def download_model_once(
                 tqdm_class=_make_tqdm_class(tracker),
             )
         )
+    except ModelDownloadCancelled:
+        raise
     except Exception as exc:
+        if cancel_event is not None and cancel_event.is_set():
+            raise ModelDownloadCancelled(
+                "The model download was stopped. Partial files were kept and can be resumed."
+            ) from exc
         message = str(exc).strip()
         if len(message) > 300:
             message = message[:297] + "…"
@@ -403,6 +443,14 @@ def download_model_once(
     finally:
         monitor_stop.set()
         monitor.join(timeout=1.0)
+
+    required_complete = all(
+        (target / filename).is_file() for filename in MODEL_REQUIRED_FILES
+    )
+    if cancel_event is not None and cancel_event.is_set() and not required_complete:
+        raise ModelDownloadCancelled(
+            "The model download was stopped. Partial files were kept and can be resumed."
+        )
 
     resolved = downloaded_path if downloaded_path.is_dir() else target
     if resolved != target and resolved.is_dir():
@@ -421,7 +469,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.5.0", encoding="utf-8")
+    (target / ".download-complete").write_text("0.5.1", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",

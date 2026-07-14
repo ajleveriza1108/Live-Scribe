@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.5.0 — BUYER QUICK GUIDE
+LIVE SCRIBE v0.5.1 — BUYER QUICK GUIDE
 ================================================
 
 WHAT IT DOES
@@ -128,3 +128,15 @@ APPEARANCE
 ----------
 Use the Appearance selector in the lower-left corner to choose OLED Black or
 Dirty White. The preference is saved locally.
+
+STOPPING AND RESUMING A MODEL DOWNLOAD
+----------------------------------------
+While a speech-quality model is downloading, click Stop Download to pause it safely.
+Wait for the progress card to disappear before closing Live Scribe. Partial files
+remain in the portable models folder. Choose the same quality and click Download
+Selected Quality later to resume from the saved progress.
+
+VOCABULARY MANAGER
+------------------
+Open Vocabulary Manager to add new entries, select and edit existing entries, or
+remove entries that are no longer needed. Changes apply to the next session.

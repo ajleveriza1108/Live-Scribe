@@ -5,7 +5,7 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.5.0** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+Version **0.5.1** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
 
 ## Modern interface
 
@@ -15,7 +15,7 @@ Live Scribe now uses a modern, minimal CustomTkinter interface with:
 - A transcript-first Live Session workspace
 - Compact navigation for Vocabulary, Models, and Settings
 - Sticky recording and WAV-verification controls
-- A temporary model-download progress card
+- A temporary model-download progress card with **Stop Download** and safe resume
 - Buyer-friendly speech-quality names and download sizes
 
 ## Supported language modes
@@ -72,15 +72,18 @@ the livestream URL and does not download the video.
 The portable application and its dependencies are already present after setup or extraction. Launching the app does **not** download a speech model.
 
 1. Open the app.
-2. Select a speech model from the in-app list.
-3. Click **Download Selected Model**.
-4. Keep the app open until that one-time download finishes.
-5. **Start Listening** becomes available only after the chosen model is ready.
-6. The same model is reused offline in later sessions.
+2. Choose a buyer-friendly speech quality in **Models**.
+3. Click **Download Selected Quality**.
+4. A progress card shows the downloaded size, total size, percentage, speed, and estimated time remaining.
+5. Click **Stop Download** whenever the connection is unstable or the download must be paused.
+6. Wait until the progress card disappears before closing Live Scribe.
+7. Partial model files are preserved. Click **Download Selected Quality** again later to resume rather than restart.
+8. **Start Listening** becomes available only after the chosen model is complete.
+9. The same completed model is reused offline in later sessions.
 
-A different model is downloaded only when the buyer explicitly selects it and presses the download button.
+A different model is downloaded only when the buyer explicitly chooses another speech quality and presses the download button.
 
-## What v0.5.0 does
+## What v0.5.1 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -204,7 +207,13 @@ dictionary/custom_terms.txt
 
 Use one entry per line. Good entries include people, churches, schools, barangays, companies, acronyms, product names, technical vocabulary, and frequently used foreign terms.
 
-For difficult words, use the in-app **Vocabulary & Pronunciation** window or edit `dictionary/pronunciation_guide.json`. Enter the correct written spelling and one or more ways the term may sound or be mistakenly transcribed. The app uses them as recognition hints and may apply exact alias corrections during the final WAV pass. Every applied correction is listed in the review comments.
+For difficult words, open the in-app **Vocabulary Manager** or edit `dictionary/pronunciation_guide.json`. The manager now provides explicit controls to:
+
+- **Add New** vocabulary and pronunciation entries
+- select an existing entry and **Save Changes**, including renaming its correct spelling
+- **Remove Selected** entries that are no longer needed
+
+Enter the correct written spelling and one or more ways the term may sound or be mistakenly transcribed. The app uses them as recognition hints and may apply exact alias corrections during the final WAV pass. Every applied correction is listed in the review comments.
 
 `dictionary/replacements.json` performs explicit automatic replacements during the final pass. Keep it small and include only unambiguous corrections.
 
@@ -273,7 +282,7 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.5.0` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.5.1` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 

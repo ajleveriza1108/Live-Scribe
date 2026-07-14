@@ -41,6 +41,7 @@ from .config import (
 )
 from .dictionary_engine import VocabularyManager
 from .models import (
+    ModelDownloadCancelled,
     ModelDownloadProgress,
     ModelLoadError,
     TranscriptSegment,
@@ -116,6 +117,7 @@ class TaglishTranscriberApp(_Controller):
         self.session: LiveTranscriptionSession | None = None
         self.model_loading = False
         self.model_downloading = False
+        self.model_download_cancel_event = threading.Event()
         self.finalizing = False
         self.last_error_message = ""
         self.selected_microphone_name = self.settings.microphone_label
@@ -258,7 +260,7 @@ class TaglishTranscriberApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.5.0",
+            text="Version 0.5.1",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=9, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -556,8 +558,8 @@ class TaglishTranscriberApp(_Controller):
         header.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 18))
         self._page_header(
             header,
-            "Vocabulary & Pronunciation",
-            "Help Live Scribe recognize difficult names, places, acronyms, and technical terms.",
+            "Vocabulary Manager",
+            "Add, edit, or remove difficult names, places, acronyms, and technical terms.",
         )
 
         card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
@@ -571,8 +573,8 @@ class TaglishTranscriberApp(_Controller):
         ctk.CTkLabel(
             card,
             text=(
-                "Enter the correct spelling and the ways a term may sound. The entries become local "
-                "recognition hints and controlled final-pass corrections. The original WAV remains the evidence."
+                "Add a correct spelling and the ways a term may sound. Select a saved entry to edit or remove it. "
+                "Entries become local recognition hints and controlled final-pass corrections. The original WAV remains the evidence."
             ),
             wraplength=760,
             justify="left",
@@ -688,7 +690,20 @@ class TaglishTranscriberApp(_Controller):
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
         )
-        self.download_progress_title.grid(row=0, column=0, sticky="w", padx=20, pady=(18, 10))
+        self.download_progress_title.grid(row=0, column=0, sticky="w", padx=(20, 10), pady=(18, 10))
+        self.stop_download_button = ctk.CTkButton(
+            self.download_progress_frame,
+            text="Stop Download",
+            command=self._stop_model_download_requested,
+            width=130,
+            height=34,
+            corner_radius=8,
+            fg_color=COLORS["danger"],
+            hover_color=("#A83440", "#D94852"),
+            text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.font_family, size=12, weight="bold"),
+        )
+        self.stop_download_button.grid(row=0, column=1, sticky="e", padx=(10, 20), pady=(14, 8))
         self.download_progress_bar = ctk.CTkProgressBar(
             self.download_progress_frame,
             variable=self.download_progress_value,
@@ -698,13 +713,13 @@ class TaglishTranscriberApp(_Controller):
             progress_color=COLORS["accent"],
             fg_color=COLORS["surface_raised"],
         )
-        self.download_progress_bar.grid(row=1, column=0, sticky="ew", padx=20)
+        self.download_progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=20)
         ctk.CTkLabel(
             self.download_progress_frame,
             textvariable=self.download_progress_text_var,
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=12),
-        ).grid(row=2, column=0, sticky="w", padx=20, pady=(8, 18))
+        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=20, pady=(8, 18))
         self.download_progress_frame.grid_remove()
 
         comparison = self._card(page, row=3, column=0, sticky="ew", padx=28, pady=(0, 16))
@@ -1012,6 +1027,7 @@ class TaglishTranscriberApp(_Controller):
             return
         self.settings.model_name = model_name
         self.settings.save()
+        self.model_download_cancel_event.clear()
         self.model_downloading = True
         self._set_controls_for_loading()
         self._show_download_progress(model_name)
@@ -1026,6 +1042,7 @@ class TaglishTranscriberApp(_Controller):
 
     def _show_download_progress(self, model_name: str) -> None:
         self._show_page("Models")
+        self.stop_download_button.configure(state="normal", text="Stop Download")
         friendly = model_friendly_name(model_name)
         self.download_progress_title.configure(text=f"Downloading {friendly}")
         self.download_progress_value.set(0.0)
@@ -1073,6 +1090,23 @@ class TaglishTranscriberApp(_Controller):
             details.append(eta)
         self.download_progress_text_var.set(f"{friendly}: " + "  •  ".join(details))
         self.status_var.set("Downloading" if percent is None else f"Downloading {percent:.0f}%")
+
+    def _model_download_cancelled(self, model_name: str) -> None:
+        self.model_downloading = False
+        self._hide_download_progress()
+        self._update_model_summary()
+        self._update_model_status()
+        self._set_controls_for_idle()
+        friendly = model_friendly_name(model_name)
+        self.status_var.set("Download stopped")
+        self.activity_var.set(
+            f"{friendly} download stopped safely. Download it again later to resume."
+        )
+        messagebox.showinfo(
+            "Download stopped",
+            f"The {friendly} download was stopped safely. Partial files were kept. "
+            "Click Download Selected Quality again later to resume from the saved progress.",
+        )
 
     def _model_download_finished(self, model_name: str) -> None:
         self.model_downloading = False

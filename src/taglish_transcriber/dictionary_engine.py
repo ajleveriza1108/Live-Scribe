@@ -120,7 +120,11 @@ class VocabularyManager:
             for written, aliases in sorted(self._pronunciations.items(), key=lambda item: item[0].casefold())
         )
 
-    def save_pronunciation(self, written: str, sounds_like: list[str] | tuple[str, ...]) -> None:
+    @staticmethod
+    def _clean_pronunciation_values(
+        written: str,
+        sounds_like: list[str] | tuple[str, ...],
+    ) -> tuple[str, tuple[str, ...]]:
         written_text = " ".join(written.strip().split())
         aliases = tuple(
             dict.fromkeys(
@@ -134,7 +138,55 @@ class VocabularyManager:
             raise ValueError("Enter the correct written spelling.")
         if not aliases:
             raise ValueError("Enter at least one pronunciation or common mistaken form.")
+        return written_text, aliases
 
+    def has_pronunciation(self, written: str) -> bool:
+        target = " ".join(written.strip().split()).casefold()
+        return any(value.casefold() == target for value in self._pronunciations)
+
+    def add_pronunciation(
+        self,
+        written: str,
+        sounds_like: list[str] | tuple[str, ...],
+    ) -> None:
+        written_text, aliases = self._clean_pronunciation_values(written, sounds_like)
+        if self.has_pronunciation(written_text):
+            raise ValueError(
+                "That vocabulary entry already exists. Select it and use Save Changes."
+            )
+        data = dict(self._pronunciations)
+        data[written_text] = aliases
+        self._write_pronunciations(data)
+        self.reload()
+
+    def update_pronunciation(
+        self,
+        original_written: str,
+        written: str,
+        sounds_like: list[str] | tuple[str, ...],
+    ) -> None:
+        if original_written not in self._pronunciations:
+            raise ValueError("The selected vocabulary entry no longer exists.")
+
+        written_text, aliases = self._clean_pronunciation_values(written, sounds_like)
+        for existing in self._pronunciations:
+            if (
+                existing != original_written
+                and existing.casefold() == written_text.casefold()
+            ):
+                raise ValueError(
+                    "Another vocabulary entry already uses that correct spelling."
+                )
+
+        data = dict(self._pronunciations)
+        del data[original_written]
+        data[written_text] = aliases
+        self._write_pronunciations(data)
+        self.reload()
+
+    def save_pronunciation(self, written: str, sounds_like: list[str] | tuple[str, ...]) -> None:
+        """Backward-compatible upsert used by older integrations."""
+        written_text, aliases = self._clean_pronunciation_values(written, sounds_like)
         data = dict(self._pronunciations)
         data[written_text] = aliases
         self._write_pronunciations(data)

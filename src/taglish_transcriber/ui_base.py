@@ -36,6 +36,7 @@ from .config import (
 )
 from .dictionary_engine import VocabularyManager
 from .models import (
+    ModelDownloadCancelled,
     ModelDownloadProgress,
     ModelLoadError,
     TranscriptSegment,
@@ -68,6 +69,7 @@ class TaglishTranscriberApp:
         self.session: LiveTranscriptionSession | None = None
         self.model_loading = False
         self.model_downloading = False
+        self.model_download_cancel_event = threading.Event()
         self.finalizing = False
         self.last_error_message = ""
         self.selected_microphone_name = self.settings.microphone_label
@@ -257,11 +259,17 @@ class TaglishTranscriberApp:
             mode="determinate",
         )
         self.download_progress_bar.grid(row=0, column=0, sticky="ew")
+        self.stop_download_button = ttk.Button(
+            self.download_progress_frame,
+            text="Stop Download",
+            command=self._stop_model_download_requested,
+        )
+        self.stop_download_button.grid(row=0, column=1, padx=(10, 0))
         ttk.Label(
             self.download_progress_frame,
             textvariable=self.download_progress_text_var,
             style="Status.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
         self.download_progress_frame.grid_remove()
 
         controls = ttk.Frame(container)
@@ -531,6 +539,7 @@ class TaglishTranscriberApp:
             return
         self.settings.model_name = model_name
         self.settings.save()
+        self.model_download_cancel_event.clear()
         self.model_downloading = True
         self._set_controls_for_loading()
         self._show_download_progress(model_name)
@@ -548,7 +557,11 @@ class TaglishTranscriberApp:
             download_model_once(
                 model_name,
                 progress_callback=self._threadsafe_download_progress,
+                cancel_event=self.model_download_cancel_event,
             )
+        except ModelDownloadCancelled:
+            self.root.after(0, self._model_download_cancelled, model_name)
+            return
         except ModelLoadError as exc:
             self.root.after(0, self._model_download_failed, str(exc))
             return
@@ -561,6 +574,37 @@ class TaglishTranscriberApp:
             )
             return
         self.root.after(0, self._model_download_finished, model_name)
+
+    def _stop_model_download_requested(self) -> None:
+        if not self.model_downloading:
+            return
+        if self.model_download_cancel_event.is_set():
+            return
+        self.model_download_cancel_event.set()
+        if hasattr(self, "stop_download_button"):
+            self.stop_download_button.configure(state="disabled", text="Stopping…")
+        self.status_var.set("Stopping download…")
+        self.download_progress_text_var.set(
+            "Stopping safely… Partial model files will remain for Resume Download."
+        )
+        self.activity_var.set(
+            "Stopping the model download. Do not close Live Scribe until the progress card disappears."
+        )
+
+    def _model_download_cancelled(self, model_name: str) -> None:
+        self.model_downloading = False
+        self._hide_download_progress()
+        self._update_model_status()
+        self._set_controls_for_idle()
+        self.status_var.set("Download stopped")
+        self.activity_var.set(
+            "Download stopped safely. Choose the same speech quality and click Download again to resume."
+        )
+        messagebox.showinfo(
+            "Download stopped",
+            "The model download was stopped safely. Partial files were kept. "
+            "Click Download Selected Quality again later to resume from the saved progress.",
+        )
 
     def _model_download_finished(self, model_name: str) -> None:
         self.model_downloading = False
@@ -610,6 +654,8 @@ class TaglishTranscriberApp:
         return f"about {hours}h {minutes:02d}m remaining"
 
     def _show_download_progress(self, model_name: str) -> None:
+        if hasattr(self, "stop_download_button"):
+            self.stop_download_button.configure(state="normal", text="Stop Download")
         self.download_progress_value.set(0.0)
         self.download_progress_text_var.set(
             f"Preparing the {model_name} model download…"
@@ -620,6 +666,8 @@ class TaglishTranscriberApp:
         self.download_progress_frame.grid()
 
     def _hide_download_progress(self) -> None:
+        if hasattr(self, "stop_download_button"):
+            self.stop_download_button.configure(state="normal", text="Stop Download")
         self.download_progress_bar.stop()
         self.download_progress_bar.configure(mode="determinate")
         self.download_progress_value.set(0.0)
@@ -1137,6 +1185,8 @@ class TaglishTranscriberApp:
             "The app is still downloading or processing. Close anyway? An incomplete model download may need to be resumed.",
         ):
             return
+        if self.model_downloading:
+            self.model_download_cancel_event.set()
         if self.session is not None:
             self.session.stop()
         self.settings = self._collect_settings()

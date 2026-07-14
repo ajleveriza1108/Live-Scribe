@@ -2,7 +2,7 @@
 
 ## Current version
 
-0.5.0
+0.5.1
 
 ## Repository
 
@@ -74,9 +74,20 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 
 Optional packs must be separately downloadable, license-reviewed, checksum-verified, removable, and disabled by default.
 
-## v0.5.0 interface direction
+## v0.5.1 interface direction
 
 The approved buyer interface is CustomTkinter-based, with OLED Black and Dirty
 White themes, compact left navigation, transcript-first Live Session page,
 buyer-friendly speech-quality labels, and eight selected transcription languages.
 Internal model identifiers remain implementation details and are not shown to buyers.
+
+## Model download control
+
+Active model downloads have a Stop Download button. Cancellation preserves partial
+Hugging Face files so choosing the same speech quality later resumes the transfer.
+The UI must not describe this as deleting or restarting the model.
+
+## Vocabulary manager behavior
+
+The manager exposes explicit Add New, Save Changes, and Remove Selected operations.
+Editing may change both the correct written spelling and its pronunciation aliases.

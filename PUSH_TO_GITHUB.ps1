@@ -1,8 +1,8 @@
-﻿﻿$ErrorActionPreference = "Stop"
+﻿﻿﻿$ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Release Live Scribe v0.5.0"
+$CommitMessage = "Add stoppable model downloads and vocabulary editing"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)
