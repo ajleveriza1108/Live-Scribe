@@ -9,8 +9,18 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from .audio import detect_default_microphone_label, list_microphones, parse_microphone_index
+from .audio import (
+    detect_default_microphone_label,
+    detect_default_system_audio_label,
+    list_microphones,
+    list_system_audio_sources,
+    parse_microphone_index,
+    system_audio_setup_help,
+)
 from .config import (
+    AUDIO_SOURCE_MICROPHONE,
+    AUDIO_SOURCE_OPTIONS,
+    AUDIO_SOURCE_SYSTEM,
     AppSettings,
     LANGUAGE_LABEL_TO_CODE,
     MODEL_OPTIONS,
@@ -55,7 +65,10 @@ class TaglishTranscriberApp:
         self.finalizing = False
         self.last_error_message = ""
         self.selected_microphone_name = self.settings.microphone_label
+        self.selected_audio_input_name = self.settings.microphone_label
 
+        self.audio_source_var = tk.StringVar(value=self.settings.audio_source_mode)
+        self.audio_input_label_var = tk.StringVar(value="Microphone")
         self.model_var = tk.StringVar(value=self.settings.model_name or MODEL_PLACEHOLDER)
         self.language_var = tk.StringVar(value=self.settings.language_label)
         self.microphone_var = tk.StringVar(value=self.settings.microphone_label)
@@ -74,7 +87,7 @@ class TaglishTranscriberApp:
 
         self._configure_style()
         self._build_ui()
-        self._refresh_microphones(auto_select=True)
+        self._refresh_audio_inputs(auto_select=True)
         self._update_model_status()
         self._set_controls_for_idle()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -104,63 +117,77 @@ class TaglishTranscriberApp:
         header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
         header.columnconfigure(0, weight=1)
         ttk.Label(header, text="Live Scribe", style="Title.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            header,
-            text="English, Tagalog, and Taglish dictation with WAV recording and post-session accuracy review.",
-            style="Subtitle.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
 
         notice_frame = ttk.LabelFrame(container, text="Important accuracy notice", padding=9)
         notice_frame.grid(row=1, column=0, sticky="ew", pady=(0, 9))
         notice_frame.columnconfigure(0, weight=1)
-        ttk.Label(
+        self.notice_message_label = ttk.Label(
             notice_frame,
             text=(
                 "AI-assisted transcription can make mistakes, especially with names, numbers, accents, "
                 "uncommon words, and noisy audio. Always review the final transcript and replay the saved WAV "
                 "before relying on important information."
             ),
-            wraplength=1120,
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            notice_frame,
-            text=(
-                "This edition is optimized for English, Tagalog/Filipino, and Taglish. "
-                "Additional languages are planned for future versions."
-            ),
-            wraplength=1120,
-            foreground="#555555",
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+            justify="left",
+            anchor="w",
+        )
+        self.notice_message_label.grid(row=0, column=0, sticky="ew")
+        notice_frame.bind("<Configure>", self._update_notice_wraplength)
+        self.root.after(0, self._update_notice_wraplength)
 
-        settings_frame = ttk.LabelFrame(container, text="Listening settings", padding=12, style="Section.TLabelframe")
+        settings_frame = ttk.LabelFrame(
+            container,
+            text="Listening settings",
+            padding=12,
+            style="Section.TLabelframe",
+        )
         settings_frame.grid(row=2, column=0, sticky="ew")
-        for column in range(5):
+        for column in range(6):
             settings_frame.columnconfigure(column, weight=1)
 
-        mic_holder = ttk.Frame(settings_frame)
-        mic_holder.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        mic_holder.columnconfigure(0, weight=1)
-        ttk.Label(mic_holder, text="Microphone").grid(row=0, column=0, sticky="w")
-        self.microphone_combo = ttk.Combobox(
-            mic_holder, textvariable=self.microphone_var, values=("Default input",), state="readonly", width=30
-        )
-        self.microphone_combo.grid(row=1, column=0, sticky="ew", pady=(4, 0))
-        ttk.Button(mic_holder, text="Detect", command=lambda: self._refresh_microphones(auto_select=True)).grid(
-            row=1, column=1, padx=(5, 0), pady=(4, 0)
+        self.audio_source_combo = self._label_and_combo(
+            settings_frame,
+            0,
+            "Listen to",
+            self.audio_source_var,
+            AUDIO_SOURCE_OPTIONS,
+            24,
         )
 
+        input_holder = ttk.Frame(settings_frame)
+        input_holder.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+        input_holder.columnconfigure(0, weight=1)
+        ttk.Label(
+            input_holder,
+            textvariable=self.audio_input_label_var,
+        ).grid(row=0, column=0, sticky="w")
+        self.microphone_combo = ttk.Combobox(
+            input_holder,
+            textvariable=self.microphone_var,
+            values=("Default input",),
+            state="readonly",
+            width=30,
+        )
+        self.microphone_combo.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        ttk.Button(
+            input_holder,
+            text="Detect",
+            command=lambda: self._refresh_audio_inputs(auto_select=True),
+        ).grid(row=1, column=1, padx=(5, 0), pady=(4, 0))
+
         self.language_combo = self._label_and_combo(
-            settings_frame, 1, "Language", self.language_var, tuple(LANGUAGE_LABEL_TO_CODE), 25
+            settings_frame, 2, "Language", self.language_var, tuple(LANGUAGE_LABEL_TO_CODE), 25
         )
         self.model_combo = self._label_and_combo(
-            settings_frame, 2, "Speech model", self.model_var, MODEL_SELECTION_OPTIONS, 18
+            settings_frame, 3, "Speech model", self.model_var, MODEL_SELECTION_OPTIONS, 18
         )
         self.device_combo = self._label_and_combo(
-            settings_frame, 3, "Processor", self.device_var, ("Auto", "CPU", "NVIDIA GPU"), 16
+            settings_frame, 4, "Processor", self.device_var, ("Auto", "CPU", "NVIDIA GPU"), 16
         )
         self.sensitivity_combo = self._label_and_combo(
-            settings_frame, 4, "Mic sensitivity", self.sensitivity_var, tuple(SENSITIVITY_THRESHOLDS), 20
+            settings_frame, 5, "Audio sensitivity", self.sensitivity_var, tuple(SENSITIVITY_THRESHOLDS), 20
         )
+        self.audio_source_combo.bind("<<ComboboxSelected>>", self._on_audio_source_selected)
         self.model_combo.bind("<<ComboboxSelected>>", self._on_model_selected)
 
         options_frame = ttk.LabelFrame(container, text="WAV verification options", padding=10)
@@ -306,6 +333,30 @@ class TaglishTranscriberApp:
         self.notebook.add(frame, text=title)
         return text
 
+    def _update_notice_wraplength(self, event=None) -> None:
+        if not hasattr(self, "notice_message_label"):
+            return
+
+        width = None
+        if event is not None:
+            width = getattr(event, "width", None)
+
+        if not width:
+            try:
+                width = self.notice_message_label.winfo_width()
+            except Exception:
+                width = None
+
+        if not width or width <= 1:
+            try:
+                parent = self.notice_message_label.nametowidget(self.notice_message_label.winfo_parent())
+                width = parent.winfo_width()
+            except Exception:
+                width = None
+
+        wraplength = max(300, int(width or 900) - 18)
+        self.notice_message_label.configure(wraplength=wraplength)
+
     def _label_and_combo(
         self,
         parent: ttk.Widget,
@@ -323,19 +374,50 @@ class TaglishTranscriberApp:
         combo.grid(row=1, column=0, sticky="ew", pady=(4, 0))
         return combo
 
+    def _on_audio_source_selected(self, _event=None) -> None:
+        self.settings.audio_source_mode = self.audio_source_var.get()
+        self._refresh_audio_inputs(auto_select=True)
+        self.settings.microphone_label = self.microphone_var.get()
+        self.settings.save()
+
     def _refresh_microphones(self, *, auto_select: bool) -> None:
-        microphones = list_microphones()
-        labels = [microphone.label for microphone in microphones]
-        if not labels:
-            labels = ["Default input"]
+        """Backward-compatible alias used by older integrations."""
+        self._refresh_audio_inputs(auto_select=auto_select)
+
+    def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
+        source_mode = self.audio_source_var.get()
+
+        if source_mode == AUDIO_SOURCE_SYSTEM:
+            self.audio_input_label_var.set("Computer audio output")
+            sources = list_system_audio_sources()
+            labels = [source.label for source in sources]
+            if not labels:
+                labels = ["No system-audio source detected"]
+            selected = detect_default_system_audio_label()
+        else:
+            self.audio_input_label_var.set("Microphone")
+            microphones = list_microphones()
+            labels = [microphone.label for microphone in microphones]
+            if not labels:
+                labels = ["Default input"]
+            selected = detect_default_microphone_label()
+
         self.microphone_combo.configure(values=labels)
         current = self.microphone_var.get()
         if auto_select or current not in labels:
-            selected = detect_default_microphone_label()
             if selected not in labels:
                 selected = labels[0]
             self.microphone_var.set(selected)
-            self.activity_var.set(f"Detected microphone: {selected}")
+
+        if source_mode == AUDIO_SOURCE_SYSTEM:
+            if labels == ["No system-audio source detected"]:
+                self.activity_var.set(system_audio_setup_help())
+            else:
+                self.activity_var.set(
+                    f"Detected livestream/system-audio source: {self.microphone_var.get()}"
+                )
+        else:
+            self.activity_var.set(f"Detected microphone: {self.microphone_var.get()}")
 
     def _selected_model_name(self) -> str:
         value = self.model_var.get().strip()
@@ -354,6 +436,7 @@ class TaglishTranscriberApp:
     def _collect_settings(self) -> AppSettings:
         return AppSettings(
             model_name=self._selected_model_name(),
+            audio_source_mode=self.audio_source_var.get(),
             language_label=self.language_var.get(),
             microphone_label=self.microphone_var.get(),
             device_mode=self.device_var.get(),
@@ -368,6 +451,7 @@ class TaglishTranscriberApp:
 
     def _set_settings_state(self, state: str) -> None:
         for combo in (
+            self.audio_source_combo,
             self.microphone_combo,
             self.language_combo,
             self.model_combo,
@@ -612,6 +696,15 @@ class TaglishTranscriberApp:
                 "The selected model is not downloaded yet. Click Download Selected Model first.",
             )
             return
+        if (
+            self.audio_source_var.get() == AUDIO_SOURCE_SYSTEM
+            and self.microphone_var.get() == "No system-audio source detected"
+        ):
+            messagebox.showwarning(
+                "Computer audio not detected",
+                system_audio_setup_help(),
+            )
+            return
         if self.document.live_entries or self.document.final_entries:
             if not messagebox.askyesno(
                 "Start a new session",
@@ -644,11 +737,17 @@ class TaglishTranscriberApp:
             recording_path = new_recording_path()
             session = LiveTranscriptionSession(
                 engine=engine,
-                microphone_index=parse_microphone_index(self.settings.microphone_label),
+                microphone_index=(
+                    parse_microphone_index(self.settings.microphone_label)
+                    if self.settings.audio_source_mode == AUDIO_SOURCE_MICROPHONE
+                    else None
+                ),
                 language_code=LANGUAGE_LABEL_TO_CODE[self.settings.language_label],
                 rms_threshold=SENSITIVITY_THRESHOLDS[self.settings.sensitivity_label],
                 recording_path=recording_path,
                 hotwords=hotwords,
+                audio_source_mode=self.settings.audio_source_mode,
+                audio_input_label=self.settings.microphone_label,
             )
             session.start()
         except (ModelLoadError, RuntimeError, KeyError) as exc:
@@ -674,7 +773,14 @@ class TaglishTranscriberApp:
         self._set_controls_for_listening()
         self._update_model_status()
         self.status_var.set("Listening")
-        self.activity_var.set("Speak naturally. The live text is intentionally left unpolished until Stop.")
+        if self.settings.audio_source_mode == AUDIO_SOURCE_SYSTEM:
+            self.activity_var.set(
+                "Livestream transcription is active. Keep the stream playing through the selected output."
+            )
+        else:
+            self.activity_var.set(
+                "Speak naturally. The live text is intentionally left unpolished until Stop."
+            )
         self.recording_var.set(f"Recording WAV: {session.recording_path.name}")
         self.notebook.select(0)
 
@@ -710,7 +816,10 @@ class TaglishTranscriberApp:
     def _handle_session_event(self, event: SessionEvent) -> None:
         if event.kind == "listening":
             payload = event.payload or {}
-            self.selected_microphone_name = str(payload.get("microphone", self.microphone_var.get()))
+            self.selected_audio_input_name = str(
+                payload.get("audio_input", self.microphone_var.get())
+            )
+            self.selected_microphone_name = self.selected_audio_input_name
             self.status_var.set("Listening")
             return
         if event.kind == "processing":

@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.3.5 — BUYER QUICK GUIDE
+LIVE SCRIBE v0.4.1 — BUYER QUICK GUIDE
 ================================================
 
 WHAT IT DOES
@@ -96,3 +96,13 @@ A progress bar appears automatically after you approve a model download. It
 shows the downloaded size, total size, percentage, speed, and approximate time
 remaining. Keep Live Scribe open until the bar disappears and the app confirms
 that the model is ready.
+
+LIVESTREAM / COMPUTER AUDIO
+---------------------------
+Choose "Computer audio / livestream" under "Listen to", click Detect, and choose
+the speakers or headphones that are playing the stream. Start the livestream
+before clicking Start Listening.
+
+Windows captures the selected output directly. Linux requires a PulseAudio or
+PipeWire monitor source. macOS requires a virtual audio device such as BlackHole.
+The app records the captured stream to WAV and can verify it afterward.

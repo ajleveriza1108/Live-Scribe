@@ -26,6 +26,7 @@ for package in (
     "av",
     "onnxruntime",
     "sounddevice",
+    "soundcard",
     "_sounddevice_data",
     "docx",
     "lxml",
@@ -46,6 +47,7 @@ for distribution in (
     "av",
     "onnxruntime",
     "sounddevice",
+    "SoundCard",
     "python-docx",
     "lxml",
 ):
@@ -134,9 +136,9 @@ if sys.platform == "darwin":
         bundle_identifier="com.ajleveriza.livescribe",
         info_plist={
             "NSMicrophoneUsageDescription": (
-                "Live Scribe needs microphone access to create live transcripts."
+                "Live Scribe needs audio-input access to transcribe microphones and routed livestream audio."
             ),
-            "CFBundleShortVersionString": "0.3.5",
-            "CFBundleVersion": "0.3.5",
+            "CFBundleShortVersionString": "0.4.1",
+            "CFBundleVersion": "0.4.1",
         },
     )

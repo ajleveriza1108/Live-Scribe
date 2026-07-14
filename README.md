@@ -5,7 +5,29 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.3.5** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+Version **0.4.1** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+
+## Livestream and computer-audio transcription
+
+Live Scribe can now transcribe audio that is playing on the computer:
+
+1. Set **Listen to** to **Computer audio / livestream**.
+2. Click **Detect** and choose the output used by the livestream.
+3. Start the YouTube, Facebook Live, Zoom, OBS, browser, meeting, or media audio.
+4. Click **Start Listening**.
+5. Live text appears phrase-by-phrase while the same audio is saved to WAV.
+6. Click **Stop & Save WAV**, then **Verify from WAV** for the separate accuracy pass.
+
+Platform behavior:
+
+- **Windows:** Uses WASAPI loopback for the selected speakers or headphones.
+- **Linux:** Uses an available PulseAudio/PipeWire monitor source.
+- **macOS:** Requires a virtual audio input such as BlackHole because macOS does
+  not expose system-output loopback directly. Route the livestream output to
+  the virtual device, then select it in Live Scribe.
+
+Live Scribe captures the audio being played by the computer. It does not require
+the livestream URL and does not download the video.
 
 ## First-run model flow
 
@@ -20,7 +42,7 @@ The portable application and its dependencies are already present after setup or
 
 A different model is downloaded only when the buyer explicitly selects it and presses the download button.
 
-## What v0.3.5 does
+## What v0.4.1 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -213,7 +235,7 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.3.5` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.4.1` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 

@@ -426,7 +426,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.3.5", encoding="utf-8")
+    (target / ".download-complete").write_text("0.4.1", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",

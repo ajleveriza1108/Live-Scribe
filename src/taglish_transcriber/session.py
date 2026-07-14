@@ -6,7 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .audio import AudioBlock, MicrophoneCapture, SpeechChunk, SpeechSegmenter
+from .audio import (
+    AudioBlock,
+    MicrophoneCapture,
+    SpeechChunk,
+    SpeechSegmenter,
+    SystemAudioCapture,
+)
+from .config import AUDIO_SOURCE_SYSTEM
 from .models import TranscriptSegment, TranscriptionError, WhisperEngine
 
 
@@ -25,6 +32,8 @@ class LiveTranscriptionSession:
         rms_threshold: float,
         recording_path: Path,
         hotwords: str | None = None,
+        audio_source_mode: str = "Microphone",
+        audio_input_label: str = "Default input",
     ) -> None:
         self.engine = engine
         self.microphone_index = microphone_index
@@ -32,17 +41,28 @@ class LiveTranscriptionSession:
         self.rms_threshold = rms_threshold
         self.recording_path = recording_path
         self.hotwords = hotwords
+        self.audio_source_mode = audio_source_mode
+        self.audio_input_label = audio_input_label
 
         self.audio_queue: queue.Queue[AudioBlock | None] = queue.Queue(maxsize=300)
         self.chunk_queue: queue.Queue[SpeechChunk | None] = queue.Queue(maxsize=30)
         self.events: queue.Queue[SessionEvent] = queue.Queue()
 
-        self.capture = MicrophoneCapture(
-            output_queue=self.audio_queue,
-            microphone_index=self.microphone_index,
-            recording_path=self.recording_path,
-            event_callback=self._on_audio_event,
-        )
+        if self.audio_source_mode == AUDIO_SOURCE_SYSTEM:
+            self.capture = SystemAudioCapture(
+                output_queue=self.audio_queue,
+                source_label=self.audio_input_label,
+                recording_path=self.recording_path,
+                event_callback=self._on_audio_event,
+            )
+        else:
+            self.capture = MicrophoneCapture(
+                output_queue=self.audio_queue,
+                microphone_index=self.microphone_index,
+                recording_path=self.recording_path,
+                event_callback=self._on_audio_event,
+            )
+
         self.segmenter = SpeechSegmenter(
             input_queue=self.audio_queue,
             output_queue=self.chunk_queue,
@@ -77,7 +97,8 @@ class LiveTranscriptionSession:
             SessionEvent(
                 kind="listening",
                 payload={
-                    "microphone": self.capture.selected_microphone_name,
+                    "audio_input": self.capture.selected_input_name,
+                    "source_mode": self.audio_source_mode,
                     "recording_path": self.recording_path,
                 },
             )

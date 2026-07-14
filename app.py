@@ -18,6 +18,7 @@ def run_self_test() -> int:
         "numpy": "numpy",
         "python-docx": "docx",
         "sounddevice": "sounddevice",
+        "SoundCard system audio": "soundcard",
         "faster-whisper": "faster_whisper",
         "CTranslate2": "ctranslate2",
         "PyAV": "av",

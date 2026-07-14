@@ -19,6 +19,10 @@ MODEL_OPTIONS = (
 )
 MODEL_SELECTION_OPTIONS = (MODEL_PLACEHOLDER, *MODEL_OPTIONS)
 
+AUDIO_SOURCE_MICROPHONE = "Microphone"
+AUDIO_SOURCE_SYSTEM = "Computer audio / livestream"
+AUDIO_SOURCE_OPTIONS = (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_SYSTEM)
+
 LANGUAGE_LABEL_TO_CODE = {
     "Auto — English + Tagalog": None,
     "English": "en",
@@ -37,11 +41,12 @@ class AppSettings:
     # Empty means the buyer has not selected a speech model yet.
     model_name: str = ""
     language_label: str = "Auto — English + Tagalog"
+    audio_source_mode: str = AUDIO_SOURCE_MICROPHONE
     microphone_label: str = "Default input"
     device_mode: str = "Auto"
     sensitivity_label: str = "Normal"
     include_timestamps: bool = True
-    # Legacy preference retained for existing settings files. Verification is manual in v0.3.5.
+    # Legacy preference retained for existing settings files. Verification is manual in v0.4.1.
     final_accuracy_pass: bool = False
     noise_reduction: bool = True
     grammar_diction_comments: bool = True
@@ -68,6 +73,8 @@ class AppSettings:
 
         if settings.model_name not in MODEL_OPTIONS:
             settings.model_name = ""
+        if settings.audio_source_mode not in AUDIO_SOURCE_OPTIONS:
+            settings.audio_source_mode = AUDIO_SOURCE_MICROPHONE
         if settings.language_label not in LANGUAGE_LABEL_TO_CODE:
             settings.language_label = "Auto — English + Tagalog"
         if settings.device_mode not in {"Auto", "CPU", "NVIDIA GPU"}:

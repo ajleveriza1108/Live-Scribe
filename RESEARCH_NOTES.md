@@ -1,4 +1,4 @@
-# Research and Architecture Decisions — v0.3.5
+# Research and Architecture Decisions — v0.4.1
 
 ## Selected core
 Faster-Whisper remains the default because it already supports multilingual Whisper models, voice activity detection, word timestamps, hotword hints, CPU quantization, and NVIDIA GPU execution.
@@ -19,3 +19,11 @@ Small Markdown skill and knowledge files take little disk space. Selected `ASR h
 
 ## Product honesty
 No local ASR system can guarantee perfect transcription. Noise reduction cannot recover words that the microphone failed to capture. The app therefore preserves the original audio and flags uncertainty rather than inventing certainty.
+
+## Livestream audio capture
+
+The system-audio input uses SoundCard, which supports Windows/WASAPI,
+Linux/PulseAudio, and macOS/CoreAudio. Windows and Linux can expose output
+loopback or monitor sources. macOS requires a separately installed virtual
+audio routing device such as BlackHole because CoreAudio does not provide a
+native speaker-loopback source.
