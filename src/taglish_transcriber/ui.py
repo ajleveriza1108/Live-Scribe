@@ -32,6 +32,7 @@ from .config import (
     THEME_LIGHT,
     THEME_OLED,
     THEME_OPTIONS,
+    DEFAULT_TOPIC_PROFILE_ID,
     model_display_label,
     model_friendly_name,
     model_id_from_display,
@@ -54,6 +55,7 @@ from .paths import EXPORT_DIR, RECORDING_DIR, ensure_app_directories, new_record
 from .postprocess import PostSessionProcessor, PostSessionResult
 from .session import LiveTranscriptionSession, SessionEvent
 from .skill_library import SkillLibrary
+from .topic_profiles import TopicProfile, TopicProfileManager
 from .transcript import TranscriptDocument, TranscriptEntry, format_clock
 from .ui_base import TaglishTranscriberApp as _Controller
 from .vocabulary_dialog import VocabularyPronunciationDialog
@@ -122,6 +124,11 @@ class TaglishTranscriberApp(_Controller):
         self.last_error_message = ""
         self.selected_microphone_name = self.settings.microphone_label
         self.selected_audio_input_name = self.settings.microphone_label
+        self.topic_manager = TopicProfileManager()
+        selected_topic = self.topic_manager.get(self.settings.topic_profile_id)
+        if selected_topic is None:
+            selected_topic = self.topic_manager.default_profile
+            self.settings.topic_profile_id = selected_topic.id
 
         self.audio_source_var = tk.StringVar(value=self.settings.audio_source_mode)
         self.audio_input_label_var = tk.StringVar(value="Microphone")
@@ -141,6 +148,11 @@ class TaglishTranscriberApp(_Controller):
         self.review_var = tk.BooleanVar(value=self.settings.grammar_diction_comments)
         self.live_appendix_var = tk.BooleanVar(value=self.settings.include_live_appendix)
         self.theme_var = tk.StringVar(value=self.settings.theme_name)
+        self.topic_var = tk.StringVar(value=selected_topic.name)
+        self.topic_summary_var = tk.StringVar(value="")
+        self.topic_editor_profile_var = tk.StringVar(value=selected_topic.name)
+        self.topic_name_var = tk.StringVar(value=selected_topic.name)
+        self.topic_editor_selected_id: str | None = selected_topic.id
         self.status_var = tk.StringVar(value="Ready")
         self.activity_var = tk.StringVar(
             value="Choose and download one speech quality option before the first session."
@@ -160,6 +172,7 @@ class TaglishTranscriberApp(_Controller):
         self._configure_style()
         self._build_ui()
         self._refresh_audio_inputs(auto_select=True)
+        self._refresh_topic_options(select_id=selected_topic.id, load_editor=True)
         self._update_model_summary()
         self._update_model_status()
         self._set_controls_for_idle()
@@ -215,6 +228,7 @@ class TaglishTranscriberApp(_Controller):
         nav_items = (
             ("Live Session", "●"),
             ("Vocabulary", "Aa"),
+            ("Topics", "◎"),
             ("Models", "↓"),
             ("Settings", "⚙"),
         )
@@ -260,7 +274,7 @@ class TaglishTranscriberApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.5.1",
+            text="Version 0.6.0",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=9, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -276,6 +290,7 @@ class TaglishTranscriberApp(_Controller):
 
         self._build_live_page()
         self._build_vocabulary_page()
+        self._build_topics_page()
         self._build_models_page()
         self._build_settings_page()
 
@@ -423,7 +438,54 @@ class TaglishTranscriberApp(_Controller):
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.detect_button.grid(row=1, column=2, padx=(8, 16), pady=(0, 16))
+        self.detect_button.grid(row=1, column=2, padx=(8, 16), pady=(0, 10))
+
+        ctk.CTkLabel(
+            input_card,
+            text="Topic profile",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+        ).grid(row=2, column=0, sticky="w", padx=16, pady=(0, 6))
+        self.topic_combo = ctk.CTkComboBox(
+            input_card,
+            variable=self.topic_var,
+            values=list(self.topic_manager.names),
+            command=self._on_topic_selected,
+            state="readonly",
+            height=38,
+            corner_radius=8,
+            fg_color=COLORS["surface_alt"],
+            border_color=COLORS["border"],
+            button_color=COLORS["surface_raised"],
+            button_hover_color=COLORS["border"],
+            text_color=COLORS["text"],
+            dropdown_fg_color=COLORS["surface_alt"],
+            dropdown_text_color=COLORS["text"],
+        )
+        self.topic_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=(16, 8), pady=(0, 6))
+        self.manage_topics_button = ctk.CTkButton(
+            input_card,
+            text="Manage Topics",
+            command=lambda: self._show_page("Topics"),
+            width=126,
+            height=38,
+            corner_radius=8,
+            fg_color=COLORS["surface_raised"],
+            hover_color=COLORS["border"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+        )
+        self.manage_topics_button.grid(row=3, column=2, padx=(8, 16), pady=(0, 6))
+        ctk.CTkLabel(
+            input_card,
+            textvariable=self.topic_summary_var,
+            text_color=COLORS["muted"],
+            anchor="w",
+            justify="left",
+            wraplength=900,
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(row=4, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 14))
 
         transcript_card = self._card(page, row=3, column=0, sticky="nsew", padx=24, pady=(0, 12))
         transcript_card.grid_rowconfigure(1, weight=1)
@@ -614,6 +676,189 @@ class TaglishTranscriberApp(_Controller):
             font=ctk.CTkFont(family=self.font_family, size=13),
         ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 20))
 
+
+    def _build_topics_page(self) -> None:
+        page = self._page_frame("Topics")
+        page.grid_columnconfigure(0, weight=1)
+        page.grid_rowconfigure(2, weight=1)
+
+        header = ctk.CTkFrame(page, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 18))
+        self._page_header(
+            header,
+            "Topic Profiles",
+            "Give the current speech model helpful context—no extra LLM or model download required.",
+        )
+
+        info = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
+        info.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            info,
+            text="Select a starter topic or create your own",
+            text_color=COLORS["text"],
+            font=ctk.CTkFont(family=self.font_family, size=16, weight="bold"),
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 6))
+        ctk.CTkLabel(
+            info,
+            text=(
+                "A topic profile supplies a short description and important terms to Faster-Whisper. "
+                "It can improve recognition of expected names and terminology, but it does not replace WAV verification. "
+                "All profiles are stored locally and may be added, edited, or removed."
+            ),
+            wraplength=920,
+            justify="left",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=12),
+        ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 18))
+
+        editor = self._card(page, row=2, column=0, sticky="nsew", padx=28, pady=(0, 24))
+        editor.grid_columnconfigure(0, weight=1)
+        editor.grid_rowconfigure(6, weight=1)
+
+        ctk.CTkLabel(
+            editor,
+            text="Saved topic profile",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 6))
+        self.topic_editor_combo = ctk.CTkComboBox(
+            editor,
+            variable=self.topic_editor_profile_var,
+            values=list(self.topic_manager.names),
+            command=self._on_topic_editor_selected,
+            state="readonly",
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["surface_alt"],
+            border_color=COLORS["border"],
+            button_color=COLORS["surface_raised"],
+            button_hover_color=COLORS["border"],
+            text_color=COLORS["text"],
+            dropdown_fg_color=COLORS["surface_alt"],
+            dropdown_text_color=COLORS["text"],
+        )
+        self.topic_editor_combo.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 14))
+
+        ctk.CTkLabel(
+            editor,
+            text="Profile name",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+        ).grid(row=2, column=0, sticky="w", padx=20, pady=(0, 6))
+        self.topic_name_entry = ctk.CTkEntry(
+            editor,
+            textvariable=self.topic_name_var,
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["surface_alt"],
+            border_color=COLORS["border"],
+            text_color=COLORS["text"],
+            placeholder_text="Example: Weekly Inventory Meeting",
+        )
+        self.topic_name_entry.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 14))
+
+        fields = ctk.CTkFrame(editor, fg_color="transparent")
+        fields.grid(row=4, column=0, sticky="nsew", padx=20, pady=(0, 14))
+        fields.grid_columnconfigure((0, 1), weight=1)
+        fields.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            fields,
+            text="What is this recording about?",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        ctk.CTkLabel(
+            fields,
+            text="Important names and words",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+        ).grid(row=0, column=1, sticky="w", padx=(12, 0), pady=(0, 6))
+
+        self.topic_description_text = ctk.CTkTextbox(
+            fields,
+            height=150,
+            corner_radius=8,
+            fg_color=COLORS["surface_alt"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+            wrap="word",
+        )
+        self.topic_description_text.grid(row=1, column=0, sticky="nsew", padx=(0, 6))
+        self.topic_terms_text = ctk.CTkTextbox(
+            fields,
+            height=150,
+            corner_radius=8,
+            fg_color=COLORS["surface_alt"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+            wrap="word",
+        )
+        self.topic_terms_text.grid(row=1, column=1, sticky="nsew", padx=(6, 0))
+
+        ctk.CTkLabel(
+            fields,
+            text="Use a short description. Do not paste the full speech or manuscript.",
+            text_color=COLORS["muted"],
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ctk.CTkLabel(
+            fields,
+            text="Enter one term per line, or separate terms with commas.",
+            text_color=COLORS["muted"],
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=2, column=1, sticky="w", padx=(12, 0), pady=(6, 0))
+
+        buttons = ctk.CTkFrame(editor, fg_color="transparent")
+        buttons.grid(row=5, column=0, sticky="ew", padx=20, pady=(0, 20))
+        self.topic_add_button = ctk.CTkButton(
+            buttons,
+            text="Add New",
+            command=self._add_topic_profile,
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["accent"],
+            hover_color=COLORS["accent_hover"],
+            text_color=("#FFFFFF", "#001219"),
+        )
+        self.topic_add_button.grid(row=0, column=0, padx=(0, 6))
+        self.topic_save_button = ctk.CTkButton(
+            buttons,
+            text="Save Changes",
+            command=self._save_topic_profile,
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["success"],
+            hover_color=COLORS["success"],
+            text_color="#FFFFFF",
+        )
+        self.topic_save_button.grid(row=0, column=1, padx=6)
+        self.topic_remove_button = ctk.CTkButton(
+            buttons,
+            text="Remove Selected",
+            command=self._remove_topic_profile,
+            height=40,
+            corner_radius=8,
+            fg_color=COLORS["danger"],
+            hover_color=COLORS["danger"],
+            text_color="#FFFFFF",
+        )
+        self.topic_remove_button.grid(row=0, column=2, padx=6)
+        self.topic_clear_button = ctk.CTkButton(
+            buttons,
+            text="Clear Form",
+            command=self._clear_topic_form,
+            height=40,
+            corner_radius=8,
+            fg_color="transparent",
+            hover_color=COLORS["surface_raised"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+        )
+        self.topic_clear_button.grid(row=0, column=3, padx=6)
     def _build_models_page(self) -> None:
         page = self._page_frame("Models")
         page.grid_columnconfigure(0, weight=1)
@@ -947,6 +1192,159 @@ class TaglishTranscriberApp(_Controller):
             width = self.notice_frame.winfo_width() if hasattr(self, "notice_frame") else 800
         self.notice_message_label.configure(wraplength=max(320, int(width) - 74))
 
+
+    def _selected_topic_profile(self) -> TopicProfile:
+        profile = self.topic_manager.get_by_name(self.topic_var.get())
+        return profile or self.topic_manager.default_profile
+
+    def _refresh_topic_options(
+        self,
+        *,
+        select_id: str | None = None,
+        load_editor: bool = False,
+    ) -> None:
+        self.topic_manager.reload()
+        profiles = self.topic_manager.profiles
+        names = [profile.name for profile in profiles]
+        if hasattr(self, "topic_combo"):
+            self.topic_combo.configure(values=names)
+        if hasattr(self, "topic_editor_combo"):
+            self.topic_editor_combo.configure(values=names)
+
+        selected = self.topic_manager.get(select_id or self.settings.topic_profile_id)
+        if selected is None:
+            selected = self.topic_manager.get_by_name(self.topic_var.get())
+        if selected is None:
+            selected = self.topic_manager.default_profile
+
+        self.topic_var.set(selected.name)
+        self.settings.topic_profile_id = selected.id
+        self.settings.save()
+        self._update_topic_summary(selected)
+
+        if load_editor or self.topic_editor_selected_id is None:
+            self._load_topic_editor(selected)
+
+    def _update_topic_summary(self, profile: TopicProfile | None = None) -> None:
+        selected = profile or self._selected_topic_profile()
+        term_count = len(selected.important_terms)
+        suffix = f"{term_count} saved important term" + ("" if term_count == 1 else "s")
+        self.topic_summary_var.set(f"{selected.description}  •  {suffix}")
+
+    def _on_topic_selected(self, choice: str | None = None) -> None:
+        profile = self.topic_manager.get_by_name(choice or self.topic_var.get())
+        if profile is None:
+            profile = self.topic_manager.default_profile
+        self.topic_var.set(profile.name)
+        self.settings.topic_profile_id = profile.id
+        self.settings.save()
+        self._update_topic_summary(profile)
+
+    def _on_topic_editor_selected(self, choice: str | None = None) -> None:
+        profile = self.topic_manager.get_by_name(choice or self.topic_editor_profile_var.get())
+        if profile is not None:
+            self._load_topic_editor(profile)
+
+    def _load_topic_editor(self, profile: TopicProfile) -> None:
+        self.topic_editor_selected_id = profile.id
+        self.topic_editor_profile_var.set(profile.name)
+        self.topic_name_var.set(profile.name)
+        if hasattr(self, "topic_description_text"):
+            self.topic_description_text.delete("1.0", "end")
+            self.topic_description_text.insert("1.0", profile.description)
+        if hasattr(self, "topic_terms_text"):
+            self.topic_terms_text.delete("1.0", "end")
+            self.topic_terms_text.insert("1.0", "\n".join(profile.important_terms))
+
+    def _topic_form_values(self) -> tuple[str, str, str]:
+        return (
+            self.topic_name_var.get(),
+            self.topic_description_text.get("1.0", "end").strip(),
+            self.topic_terms_text.get("1.0", "end").strip(),
+        )
+
+    def _clear_topic_form(self) -> None:
+        self.topic_editor_selected_id = None
+        self.topic_editor_profile_var.set("")
+        self.topic_name_var.set("")
+        self.topic_description_text.delete("1.0", "end")
+        self.topic_terms_text.delete("1.0", "end")
+        self.topic_name_entry.focus_set()
+
+    def _add_topic_profile(self) -> None:
+        if self.session is not None or self.model_loading or self.finalizing:
+            messagebox.showinfo(
+                "Session is active",
+                "Finish the active transcription or verification before changing topic profiles.",
+            )
+            return
+        name, description, terms = self._topic_form_values()
+        try:
+            profile = self.topic_manager.add(name, description, terms)
+        except ValueError as exc:
+            messagebox.showwarning("Topic profile not saved", str(exc))
+            return
+        self.topic_editor_selected_id = profile.id
+        self._refresh_topic_options(select_id=profile.id, load_editor=True)
+        self.activity_var.set(f"Topic profile added: {profile.name}")
+
+    def _save_topic_profile(self) -> None:
+        if self.topic_editor_selected_id is None:
+            messagebox.showinfo(
+                "Choose a saved topic",
+                "Select a saved topic profile to edit, or use Add New to create one.",
+            )
+            return
+        if self.session is not None or self.model_loading or self.finalizing:
+            messagebox.showinfo(
+                "Session is active",
+                "Finish the active transcription or verification before changing topic profiles.",
+            )
+            return
+        name, description, terms = self._topic_form_values()
+        try:
+            profile = self.topic_manager.update(
+                self.topic_editor_selected_id,
+                name,
+                description,
+                terms,
+            )
+        except ValueError as exc:
+            messagebox.showwarning("Topic profile not saved", str(exc))
+            return
+        self._refresh_topic_options(select_id=profile.id, load_editor=True)
+        self.activity_var.set(f"Topic profile updated: {profile.name}")
+
+    def _remove_topic_profile(self) -> None:
+        profile = self.topic_manager.get(self.topic_editor_selected_id)
+        if profile is None:
+            messagebox.showinfo("Choose a topic", "Select a saved topic profile first.")
+            return
+        if self.session is not None or self.model_loading or self.finalizing:
+            messagebox.showinfo(
+                "Session is active",
+                "Finish the active transcription or verification before removing topic profiles.",
+            )
+            return
+        if not messagebox.askyesno(
+            "Remove topic profile",
+            f"Remove “{profile.name}” from this portable copy of Live Scribe?",
+        ):
+            return
+        try:
+            self.topic_manager.remove(profile.id)
+        except ValueError as exc:
+            messagebox.showwarning("Topic profile not removed", str(exc))
+            return
+        next_profile = self.topic_manager.default_profile
+        self.topic_editor_selected_id = next_profile.id
+        self._refresh_topic_options(select_id=next_profile.id, load_editor=True)
+        self.activity_var.set(f"Topic profile removed: {profile.name}")
+
+    def _topic_context_for_session(self) -> tuple[str, list[str]]:
+        profile = self._selected_topic_profile()
+        self.settings.topic_profile_id = profile.id
+        return profile.context_prompt(), profile.terms_for_recognition()
     def _selected_model_name(self) -> str:
         return model_id_from_display(self.model_var.get())
 
@@ -976,6 +1374,7 @@ class TaglishTranscriberApp(_Controller):
     def _collect_settings(self) -> AppSettings:
         settings = super()._collect_settings()
         settings.theme_name = self.theme_var.get()
+        settings.topic_profile_id = self._selected_topic_profile().id
         return settings
 
     def _set_settings_state(self, state: str) -> None:
@@ -986,6 +1385,7 @@ class TaglishTranscriberApp(_Controller):
             self.model_combo,
             self.device_combo,
             self.sensitivity_combo,
+            self.topic_combo,
         ):
             combo.configure(state=state)
         switch_state = "normal" if state == "readonly" else "disabled"
@@ -996,7 +1396,9 @@ class TaglishTranscriberApp(_Controller):
             self.timestamps_switch,
         ):
             switch.configure(state=switch_state)
-        self.detect_button.configure(state="normal" if state == "readonly" else "disabled")
+        enabled = "normal" if state == "readonly" else "disabled"
+        self.detect_button.configure(state=enabled)
+        self.manage_topics_button.configure(state=enabled)
 
     def _download_model_requested(self) -> None:
         if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:

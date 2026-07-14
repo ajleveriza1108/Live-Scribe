@@ -2,7 +2,7 @@
 
 ## Current version
 
-0.5.1
+0.6.0
 
 ## Repository
 
@@ -74,7 +74,7 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 
 Optional packs must be separately downloadable, license-reviewed, checksum-verified, removable, and disabled by default.
 
-## v0.5.1 interface direction
+## v0.6.0 interface direction
 
 The approved buyer interface is CustomTkinter-based, with OLED Black and Dirty
 White themes, compact left navigation, transcript-first Live Session page,
@@ -91,3 +91,16 @@ The UI must not describe this as deleting or restarting the model.
 
 The manager exposes explicit Add New, Save Changes, and Remove Selected operations.
 Editing may change both the correct written spelling and its pronunciation aliases.
+
+## v0.6.0 topic profile direction
+
+Live Scribe now includes local editable Topic Profiles. The user chooses a
+profile before starting a session. Topic terms are prioritized in Faster-Whisper
+hotwords, and a short profile description is appended to the language-specific
+initial prompt. The selected profile snapshot is reused during Verify from WAV.
+
+Starter profiles cover general conversation, office meetings, classes,
+Zoom/Google Meet, interviews, church, livestreams, technology, e-commerce, and
+news. Users can add, edit, or remove profiles in the modern Topics page. No LLM
+or separate model download is involved.
+

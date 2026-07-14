@@ -9,6 +9,7 @@ from src.taglish_transcriber import __version__
 from src.taglish_transcriber.dictionary_engine import VocabularyManager
 from src.taglish_transcriber.paths import APP_ROOT, ensure_app_directories
 from src.taglish_transcriber.skill_library import SkillLibrary
+from src.taglish_transcriber.topic_profiles import TopicProfileManager
 
 
 def run_self_test() -> int:
@@ -40,9 +41,11 @@ def run_self_test() -> int:
         write_test.unlink(missing_ok=True)
         vocabulary = VocabularyManager()
         skills = SkillLibrary()
+        topics = TopicProfileManager()
         checks["dictionary terms"] = str(len(vocabulary.terms))
         checks["Markdown skills"] = str(len(skills.skills))
         checks["Markdown knowledge"] = str(len(skills.knowledge))
+        checks["topic profiles"] = str(len(topics.profiles))
     except Exception as exc:  # pragma: no cover - used by packaged smoke tests
         print(json.dumps({"status": "failed", "portable_home": str(APP_ROOT), "error": str(exc)}))
         return 1

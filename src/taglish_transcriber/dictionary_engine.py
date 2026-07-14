@@ -212,20 +212,40 @@ class VocabularyManager:
             encoding="utf-8",
         )
 
-    def hotwords(self, extra_terms: list[str] | None = None, max_characters: int = 1200) -> str | None:
-        values = list(self._terms)
+    def hotwords(
+        self,
+        extra_terms: list[str] | None = None,
+        max_characters: int = 1200,
+        priority_terms: list[str] | tuple[str, ...] | None = None,
+    ) -> str | None:
+        """Build compact recognition hints, prioritizing the selected topic profile."""
+        values: list[str] = []
+        if priority_terms:
+            values.extend(priority_terms)
+
+        values.extend(self._terms)
         for written, aliases in self._pronunciations.items():
             values.append(written)
             values.extend(aliases)
         if extra_terms:
             values.extend(extra_terms)
-        unique = list(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+        unique: list[str] = []
+        seen: set[str] = set()
+        for raw_value in values:
+            value = raw_value.strip()
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            seen.add(key)
+            unique.append(value)
+
         chosen: list[str] = []
         length = 0
         for value in unique:
             addition = len(value) + (2 if chosen else 0)
             if length + addition > max_characters:
-                break
+                continue
             chosen.append(value)
             length += addition
         return ", ".join(chosen) if chosen else None

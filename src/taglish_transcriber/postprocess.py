@@ -34,12 +34,16 @@ class PostSessionProcessor:
         language_label: str,
         noise_reduction: bool,
         grammar_diction_comments: bool,
+        topic_context: str | None = None,
+        topic_terms: list[str] | tuple[str, ...] = (),
     ) -> None:
         self.engine = engine
         self.language_code = language_code
         self.language_label = language_label
         self.use_noise_reduction = noise_reduction
         self.use_review = grammar_diction_comments
+        self.topic_context = topic_context
+        self.topic_terms = tuple(topic_terms)
         self.vocabulary = VocabularyManager()
         self.skills = SkillLibrary()
         self.reviewer = GrammarDictionReviewEngine()
@@ -68,12 +72,16 @@ class PostSessionProcessor:
                     f"Details: {str(exc).strip() or 'unknown audio processing error'}"
                 )
 
-        hotwords = self.vocabulary.hotwords(self.skills.asr_hotwords())
+        hotwords = self.vocabulary.hotwords(
+            self.skills.asr_hotwords(),
+            priority_terms=self.topic_terms,
+        )
         segments = self.engine.transcribe_file(
             transcription_source,
             language_code=self.language_code,
             hotwords=hotwords,
             language_label=self.language_label,
+            context_prompt=self.topic_context,
         )
 
         corrected_segments: list[TranscriptSegment] = []

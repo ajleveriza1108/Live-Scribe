@@ -469,7 +469,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.5.1", encoding="utf-8")
+    (target / ".download-complete").write_text("0.6.0", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",
@@ -478,6 +478,19 @@ def download_model_once(
         force=True,
     )
     return target
+
+
+def compose_initial_prompt(
+    language_label: str | None,
+    context_prompt: str | None = None,
+) -> str:
+    """Combine the language rule with a short user-selected recording context."""
+    base = language_prompt(language_label)
+    context = " ".join((context_prompt or "").strip().split())
+    if not context:
+        return base
+    context = context[:650].rstrip()
+    return f"{base} {context}"
 
 
 class WhisperEngine:
@@ -591,6 +604,7 @@ class WhisperEngine:
         language_code: str | None,
         hotwords: str | None = None,
         language_label: str | None = None,
+        context_prompt: str | None = None,
     ) -> list[TranscriptSegment]:
         """Fast phrase-level pass used while the speaker is still talking."""
         if self._model is None:
@@ -611,7 +625,7 @@ class WhisperEngine:
                 "speech_pad_ms": 180,
             },
             "word_timestamps": False,
-            "initial_prompt": language_prompt(language_label),
+            "initial_prompt": compose_initial_prompt(language_label, context_prompt),
         }
         if language_code:
             kwargs["language"] = language_code
@@ -626,6 +640,7 @@ class WhisperEngine:
         language_code: str | None,
         hotwords: str | None = None,
         language_label: str | None = None,
+        context_prompt: str | None = None,
     ) -> list[TranscriptSegment]:
         """Slower, more accurate pass used after the WAV recording is complete."""
         if self._model is None:
@@ -647,7 +662,7 @@ class WhisperEngine:
             },
             "word_timestamps": True,
             "hallucination_silence_threshold": 2.0,
-            "initial_prompt": language_prompt(language_label),
+            "initial_prompt": compose_initial_prompt(language_label, context_prompt),
         }
         if language_code:
             kwargs["language"] = language_code

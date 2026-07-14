@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.5.1 — BUYER QUICK GUIDE
+LIVE SCRIBE v0.6.0 — BUYER QUICK GUIDE
 ================================================
 
 WHAT IT DOES
@@ -140,3 +140,18 @@ VOCABULARY MANAGER
 ------------------
 Open Vocabulary Manager to add new entries, select and edit existing entries, or
 remove entries that are no longer needed. Changes apply to the next session.
+
+TOPIC PROFILES
+--------------
+Before starting, choose the closest Topic profile on the Live Session page.
+The included profiles cover everyday conversations, office meetings, classes,
+Zoom/Google Meet calls, interviews, sermons, livestreams, programming,
+e-commerce, and news.
+
+Open Topics in the sidebar to add, edit, or remove profiles. Enter a short
+description and important names or terms. The profile is saved locally and can
+be reused later. It does not require another LLM or model download.
+
+A Topic Profile is a recognition hint only. Always verify important names,
+numbers, dates, quotations, and decisions against the saved WAV.
+

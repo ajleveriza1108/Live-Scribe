@@ -16,6 +16,7 @@ def test_modern_gui_uses_customtkinter_and_two_themes() -> None:
     assert THEME_LIGHT == "Dirty White"
     assert "Live Session" in source
     assert "Vocabulary" in source
+    assert "Topics" in source
     assert "Models" in source
     assert "Settings" in source
     assert "Stop & Save WAV" in source

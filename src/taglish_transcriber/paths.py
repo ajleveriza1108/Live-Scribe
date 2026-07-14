@@ -48,6 +48,7 @@ CACHE_DIR = APP_ROOT / ".cache"
 TEMP_DIR = CACHE_DIR / "temp"
 HF_HOME_DIR = CACHE_DIR / "huggingface"
 SETTINGS_FILE = DATA_DIR / "settings.json"
+TOPIC_PROFILES_FILE = DATA_DIR / "topic_profiles.json"
 
 # Keep model downloads and Hugging Face cache inside the portable folder.
 os.environ.setdefault("HF_HOME", str(HF_HOME_DIR))

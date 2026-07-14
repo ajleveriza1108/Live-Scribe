@@ -5,7 +5,7 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.5.1** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+Version **0.6.0** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
 
 ## Modern interface
 
@@ -83,7 +83,56 @@ The portable application and its dependencies are already present after setup or
 
 A different model is downloaded only when the buyer explicitly chooses another speech quality and presses the download button.
 
-## What v0.5.1 does
+
+## Topic Profiles — no additional LLM required
+
+Live Scribe includes editable **Topic Profiles** that help the existing
+Faster-Whisper speech model recognize likely names, acronyms, products, platforms,
+and specialized terms. Topic Profiles are small local JSON records; selecting one
+does not download another model and does not require an LLM.
+
+Starter profiles included:
+
+1. General Conversation
+2. Office & Business Meeting
+3. School, Class & Lecture
+4. Zoom, Google Meet & Online Meeting
+5. Interview & Research
+6. Church, Sermon & Bible Study
+7. Livestream, Webinar & Presentation
+8. Technology & Programming
+9. E-commerce & Online Selling
+10. News & Current Events
+
+### Using a topic during transcription
+
+1. Open **Live Session**.
+2. Choose the closest profile under **Topic profile**.
+3. Start listening normally.
+4. Live Scribe combines the selected topic terms with the local Vocabulary
+   Manager and Markdown ASR hints.
+5. The same topic context is retained for the separate **Verify from WAV** pass.
+
+### Add, edit, and remove profiles
+
+Open **Topics** from the sidebar.
+
+- **Add New** creates a local reusable profile.
+- **Save Changes** edits the selected profile.
+- **Remove Selected** deletes it from the current portable copy.
+- **Clear Form** prepares the editor for a new profile.
+
+A profile contains:
+
+- a short profile name
+- a short description of the recording
+- important names and words, entered one per line or separated by commas
+
+Do not paste a complete transcript or manuscript. Topic context is only a
+recognition hint. Important information must still be checked against the WAV.
+
+
+## What v0.6.0 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -282,7 +331,7 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.5.1` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.6.0` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 

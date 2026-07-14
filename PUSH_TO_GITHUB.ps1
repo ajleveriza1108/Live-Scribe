@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Add stoppable model downloads and vocabulary editing"
+$CommitMessage = "Add editable topic profiles for general use"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)

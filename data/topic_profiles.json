@@ -1,0 +1,196 @@
+[
+  {
+    "id": "general-conversation",
+    "name": "General Conversation",
+    "description": "Everyday conversations, personal notes, informal discussions, and recordings without a specialized subject.",
+    "important_terms": [],
+    "starter": true
+  },
+  {
+    "id": "office-business-meeting",
+    "name": "Office & Business Meeting",
+    "description": "Office discussions, team meetings, planning sessions, reports, projects, deadlines, budgets, clients, and action items.",
+    "important_terms": [
+      "agenda",
+      "minutes",
+      "action item",
+      "follow-up",
+      "deadline",
+      "deliverable",
+      "department",
+      "manager",
+      "client",
+      "budget",
+      "invoice",
+      "purchase order",
+      "KPI",
+      "ROI"
+    ],
+    "starter": true
+  },
+  {
+    "id": "school-class-lecture",
+    "name": "School, Class & Lecture",
+    "description": "Classroom lessons, lectures, student discussions, assignments, examinations, presentations, and academic recordings.",
+    "important_terms": [
+      "assignment",
+      "syllabus",
+      "lesson",
+      "module",
+      "lecture",
+      "quiz",
+      "examination",
+      "project",
+      "presentation",
+      "teacher",
+      "professor",
+      "instructor",
+      "student",
+      "class discussion"
+    ],
+    "starter": true
+  },
+  {
+    "id": "online-meeting",
+    "name": "Zoom, Google Meet & Online Meeting",
+    "description": "Remote classes, office calls, online conferences, virtual meetings, and screen-sharing sessions.",
+    "important_terms": [
+      "Zoom",
+      "Google Meet",
+      "Microsoft Teams",
+      "mute",
+      "unmute",
+      "screen sharing",
+      "breakout room",
+      "chat",
+      "microphone",
+      "camera",
+      "connection",
+      "presenter",
+      "participant",
+      "recording"
+    ],
+    "starter": true
+  },
+  {
+    "id": "interview-research",
+    "name": "Interview & Research",
+    "description": "Job interviews, research interviews, surveys, oral histories, focus groups, and question-and-answer recordings.",
+    "important_terms": [
+      "interviewer",
+      "interviewee",
+      "respondent",
+      "participant",
+      "questionnaire",
+      "consent",
+      "research",
+      "methodology",
+      "findings",
+      "follow-up question",
+      "focus group"
+    ],
+    "starter": true
+  },
+  {
+    "id": "church-sermon-bible-study",
+    "name": "Church, Sermon & Bible Study",
+    "description": "Sermons, Bible studies, Sunday school, church meetings, ministry training, devotions, and religious presentations.",
+    "important_terms": [
+      "Bible",
+      "Scripture",
+      "sermon",
+      "Bible study",
+      "Sunday school",
+      "pastor",
+      "preacher",
+      "ministry",
+      "discipleship",
+      "fellowship",
+      "prayer",
+      "worship",
+      "testimony"
+    ],
+    "starter": true
+  },
+  {
+    "id": "livestream-webinar-presentation",
+    "name": "Livestream, Webinar & Presentation",
+    "description": "Livestreams, webinars, conferences, product demonstrations, public talks, training sessions, and formal presentations.",
+    "important_terms": [
+      "livestream",
+      "webinar",
+      "presentation",
+      "speaker",
+      "presenter",
+      "audience",
+      "question and answer",
+      "Q&A",
+      "demonstration",
+      "session",
+      "conference",
+      "workshop"
+    ],
+    "starter": true
+  },
+  {
+    "id": "technology-programming",
+    "name": "Technology & Programming",
+    "description": "Software development, computer training, technical support, coding tutorials, IT meetings, and product-development discussions.",
+    "important_terms": [
+      "Python",
+      "PowerShell",
+      "GitHub",
+      "Visual Studio Code",
+      "API",
+      "JSON",
+      "repository",
+      "database",
+      "frontend",
+      "backend",
+      "debugging",
+      "deployment",
+      "CustomTkinter",
+      "Faster-Whisper"
+    ],
+    "starter": true
+  },
+  {
+    "id": "ecommerce-online-selling",
+    "name": "E-commerce & Online Selling",
+    "description": "Online-store operations, product listings, customer support, inventory, suppliers, shipping, returns, and digital-product discussions.",
+    "important_terms": [
+      "Etsy",
+      "eBay",
+      "Amazon",
+      "listing",
+      "SKU",
+      "inventory",
+      "supplier",
+      "fulfillment",
+      "tracking number",
+      "return policy",
+      "digital product",
+      "customer support",
+      "order"
+    ],
+    "starter": true
+  },
+  {
+    "id": "news-current-events",
+    "name": "News & Current Events",
+    "description": "News reports, public announcements, community updates, government briefings, and discussions of current events.",
+    "important_terms": [
+      "announcement",
+      "breaking news",
+      "press conference",
+      "public advisory",
+      "government agency",
+      "local government",
+      "community update",
+      "official statement",
+      "reporter",
+      "correspondent"
+    ],
+    "starter": true
+  }
+]

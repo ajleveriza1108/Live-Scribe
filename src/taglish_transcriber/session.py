@@ -35,6 +35,7 @@ class LiveTranscriptionSession:
         hotwords: str | None = None,
         audio_source_mode: str = "Microphone",
         audio_input_label: str = "Default input",
+        context_prompt: str | None = None,
     ) -> None:
         self.engine = engine
         self.microphone_index = microphone_index
@@ -45,6 +46,7 @@ class LiveTranscriptionSession:
         self.hotwords = hotwords
         self.audio_source_mode = audio_source_mode
         self.audio_input_label = audio_input_label
+        self.context_prompt = context_prompt
 
         self.audio_queue: queue.Queue[AudioBlock | None] = queue.Queue(maxsize=300)
         self.chunk_queue: queue.Queue[SpeechChunk | None] = queue.Queue(maxsize=30)
@@ -139,6 +141,7 @@ class LiveTranscriptionSession:
                     language_code=self.language_code,
                     hotwords=self.hotwords,
                     language_label=self.language_label,
+                    context_prompt=self.context_prompt,
                 )
             except TranscriptionError as exc:
                 self.events.put(SessionEvent(kind="error", payload=str(exc)))

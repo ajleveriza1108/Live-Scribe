@@ -49,6 +49,7 @@ from .paths import EXPORT_DIR, RECORDING_DIR, ensure_app_directories, new_record
 from .postprocess import PostSessionProcessor, PostSessionResult
 from .session import LiveTranscriptionSession, SessionEvent
 from .skill_library import SkillLibrary
+from .topic_profiles import TopicProfileManager
 from .transcript import TranscriptDocument, TranscriptEntry, format_clock
 from .vocabulary_dialog import VocabularyPronunciationDialog
 
@@ -734,6 +735,14 @@ class TaglishTranscriberApp:
         else:
             self.status_var.set(f"Downloading model… {percent:.0f}%")
 
+    def _topic_context_for_session(self) -> tuple[str, list[str]]:
+        manager = TopicProfileManager()
+        profile = manager.get(getattr(self.settings, "topic_profile_id", ""))
+        if profile is None:
+            profile = manager.default_profile
+            self.settings.topic_profile_id = profile.id
+        return profile.context_prompt(), profile.terms_for_recognition()
+
     def _start_requested(self) -> None:
         if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:
             return
@@ -787,7 +796,13 @@ class TaglishTranscriberApp:
             engine.load()
             vocabulary = VocabularyManager()
             skills = SkillLibrary()
-            hotwords = vocabulary.hotwords(skills.asr_hotwords())
+            topic_context, topic_terms = self._topic_context_for_session()
+            self.active_topic_context = topic_context
+            self.active_topic_terms = list(topic_terms)
+            hotwords = vocabulary.hotwords(
+                skills.asr_hotwords(),
+                priority_terms=topic_terms,
+            )
             recording_path = new_recording_path()
             session = LiveTranscriptionSession(
                 engine=engine,
@@ -803,6 +818,7 @@ class TaglishTranscriberApp:
                 hotwords=hotwords,
                 audio_source_mode=self.settings.audio_source_mode,
                 audio_input_label=self.settings.microphone_label,
+                context_prompt=topic_context,
             )
             session.start()
         except (ModelLoadError, RuntimeError, KeyError) as exc:
@@ -965,6 +981,8 @@ class TaglishTranscriberApp:
                 language_label=self.settings.language_label,
                 noise_reduction=self.settings.noise_reduction,
                 grammar_diction_comments=self.settings.grammar_diction_comments,
+                topic_context=getattr(self, "active_topic_context", None),
+                topic_terms=getattr(self, "active_topic_terms", ()),
             )
             result = processor.process(
                 recording_path,

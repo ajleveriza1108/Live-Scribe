@@ -178,6 +178,8 @@ THEME_OLED = "OLED Black"
 THEME_LIGHT = "Dirty White"
 THEME_OPTIONS = (THEME_OLED, THEME_LIGHT)
 
+DEFAULT_TOPIC_PROFILE_ID = "general-conversation"
+
 
 @dataclass(slots=True)
 class AppSettings:
@@ -193,6 +195,7 @@ class AppSettings:
     grammar_diction_comments: bool = True
     include_live_appendix: bool = True
     theme_name: str = THEME_OLED
+    topic_profile_id: str = DEFAULT_TOPIC_PROFILE_ID
 
     @classmethod
     def load(cls, path: Path = SETTINGS_FILE) -> "AppSettings":
@@ -231,6 +234,8 @@ class AppSettings:
             settings.sensitivity_label = "Normal"
         if settings.theme_name not in THEME_OPTIONS:
             settings.theme_name = THEME_OLED
+        if not isinstance(settings.topic_profile_id, str) or not settings.topic_profile_id.strip():
+            settings.topic_profile_id = DEFAULT_TOPIC_PROFILE_ID
         return settings
 
     def save(self, path: Path = SETTINGS_FILE) -> None:
