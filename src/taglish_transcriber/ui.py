@@ -41,6 +41,14 @@ from .config import (
     model_size_label,
 )
 from .dictionary_engine import VocabularyManager
+from .hardware import (
+    HARDWARE_CHECK_VERSION,
+    STATUS_CAUTION,
+    STATUS_UNAVAILABLE,
+    HardwareAssessment,
+    assess_this_pc,
+    save_hardware_assessment,
+)
 from .models import (
     ModelDownloadCancelled,
     ModelDownloadProgress,
@@ -106,6 +114,22 @@ class TaglishTranscriberApp(_Controller):
     def __init__(self) -> None:
         ensure_app_directories()
         self.settings = AppSettings.load()
+        self.first_run_hardware_notice = (
+            not self.settings.hardware_check_completed
+            or self.settings.hardware_check_version < HARDWARE_CHECK_VERSION
+        )
+        self.hardware_assessment = assess_this_pc()
+        save_hardware_assessment(self.hardware_assessment)
+
+        selected_hardware_model = self.settings.model_name
+        if (
+            selected_hardware_model
+            and not is_model_downloaded(selected_hardware_model)
+            and not self.hardware_assessment.capability(selected_hardware_model).download_allowed
+        ):
+            selected_hardware_model = ""
+            self.settings.model_name = ""
+
         ctk.set_default_color_theme("blue")
         ctk.set_appearance_mode("Dark" if self.settings.theme_name == THEME_OLED else "Light")
 
@@ -134,8 +158,8 @@ class TaglishTranscriberApp(_Controller):
         self.audio_input_label_var = tk.StringVar(value="Microphone")
         self.model_var = tk.StringVar(
             value=(
-                model_display_label(self.settings.model_name)
-                if self.settings.model_name in MODEL_OPTIONS
+                model_display_label(selected_hardware_model)
+                if selected_hardware_model in MODEL_OPTIONS
                 else MODEL_PLACEHOLDER
             )
         )
@@ -162,6 +186,9 @@ class TaglishTranscriberApp(_Controller):
         self.download_progress_value = tk.DoubleVar(value=0.0)
         self.download_progress_text_var = tk.StringVar(value="")
         self.model_summary_var = tk.StringVar(value="Choose a speech quality option.")
+        self.hardware_summary_var = tk.StringVar(value=self.hardware_assessment.snapshot.summary())
+        self.hardware_recommendation_var = tk.StringVar(value="")
+        self.hardware_compatibility_var = tk.StringVar(value="")
 
         self.font_family = self._system_font_family()
         self.pages: dict[str, ctk.CTkFrame] = {}
@@ -173,14 +200,22 @@ class TaglishTranscriberApp(_Controller):
         self._build_ui()
         self._refresh_audio_inputs(auto_select=True)
         self._refresh_topic_options(select_id=selected_topic.id, load_editor=True)
+        self._refresh_hardware_advice(update_selector=True)
         self._update_model_summary()
         self._update_model_status()
         self._set_controls_for_idle()
         self._apply_text_theme()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(self.POLL_INTERVAL_MS, self._poll_session_events)
+        if self.first_run_hardware_notice:
+            self.root.after(500, self._show_first_run_hardware_notice)
 
-        if not self.settings.model_name:
+        selected_model = self._selected_model_name()
+        selected_unavailable = bool(
+            selected_model
+            and self.hardware_assessment.capability(selected_model).status == STATUS_UNAVAILABLE
+        )
+        if not self.settings.model_name or selected_unavailable:
             self._show_page("Models")
         else:
             self._show_page("Live Session")
@@ -274,7 +309,7 @@ class TaglishTranscriberApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.6.0",
+            text="Version 0.6.1",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=9, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -862,15 +897,58 @@ class TaglishTranscriberApp(_Controller):
     def _build_models_page(self) -> None:
         page = self._page_frame("Models")
         page.grid_columnconfigure(0, weight=1)
+        page.grid_rowconfigure(4, weight=1)
+
         header = ctk.CTkFrame(page, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 18))
         self._page_header(
             header,
             "Speech Quality",
-            "Download one AI speech model once, then use it offline for every supported language.",
+            "Live Scribe checks this computer before offering model downloads.",
         )
 
-        choose_card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
+        hardware_card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
+        hardware_card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            hardware_card,
+            text="This PC",
+            text_color=COLORS["text"],
+            font=ctk.CTkFont(family=self.font_family, size=16, weight="bold"),
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 5))
+        ctk.CTkLabel(
+            hardware_card,
+            textvariable=self.hardware_summary_var,
+            text_color=COLORS["text_secondary"],
+            justify="left",
+            anchor="w",
+            wraplength=860,
+            font=ctk.CTkFont(family=self.font_family, size=12),
+        ).grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 5))
+        ctk.CTkLabel(
+            hardware_card,
+            textvariable=self.hardware_recommendation_var,
+            text_color=COLORS["text"],
+            justify="left",
+            anchor="w",
+            wraplength=860,
+            font=ctk.CTkFont(family=self.font_family, size=12, weight="bold"),
+        ).grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 18))
+        self.recheck_pc_button = ctk.CTkButton(
+            hardware_card,
+            text="Check This PC Again",
+            command=self._recheck_this_pc,
+            width=160,
+            height=38,
+            corner_radius=8,
+            fg_color=COLORS["surface_raised"],
+            hover_color=COLORS["border"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+        )
+        self.recheck_pc_button.grid(row=0, column=1, rowspan=3, sticky="e", padx=20, pady=18)
+
+        choose_card = self._card(page, row=2, column=0, sticky="ew", padx=28, pady=(0, 14))
         choose_card.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             choose_card,
@@ -881,7 +959,7 @@ class TaglishTranscriberApp(_Controller):
         self.model_combo = ctk.CTkComboBox(
             choose_card,
             variable=self.model_var,
-            values=list(MODEL_SELECTION_OPTIONS),
+            values=list(self._hardware_model_selection_options()),
             command=self._on_model_selected,
             state="readonly",
             height=42,
@@ -899,7 +977,7 @@ class TaglishTranscriberApp(_Controller):
         ctk.CTkLabel(
             choose_card,
             textvariable=self.model_summary_var,
-            wraplength=820,
+            wraplength=880,
             justify="left",
             anchor="w",
             text_color=COLORS["text_secondary"],
@@ -910,6 +988,8 @@ class TaglishTranscriberApp(_Controller):
             textvariable=self.model_status_var,
             text_color=COLORS["muted"],
             anchor="w",
+            justify="left",
+            wraplength=880,
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
         ).grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 12))
         self.download_model_button = ctk.CTkButton(
@@ -926,7 +1006,7 @@ class TaglishTranscriberApp(_Controller):
         self.download_model_button.grid(row=4, column=0, sticky="w", padx=20, pady=(0, 20))
 
         self.download_progress_frame = self._card(
-            page, row=2, column=0, sticky="ew", padx=28, pady=(0, 14)
+            page, row=3, column=0, sticky="ew", padx=28, pady=(0, 14)
         )
         self.download_progress_frame.grid_columnconfigure(0, weight=1)
         self.download_progress_title = ctk.CTkLabel(
@@ -935,7 +1015,9 @@ class TaglishTranscriberApp(_Controller):
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
         )
-        self.download_progress_title.grid(row=0, column=0, sticky="w", padx=(20, 10), pady=(18, 10))
+        self.download_progress_title.grid(
+            row=0, column=0, sticky="w", padx=(20, 10), pady=(18, 10)
+        )
         self.stop_download_button = ctk.CTkButton(
             self.download_progress_frame,
             text="Stop Download",
@@ -948,7 +1030,9 @@ class TaglishTranscriberApp(_Controller):
             text_color="#FFFFFF",
             font=ctk.CTkFont(family=self.font_family, size=12, weight="bold"),
         )
-        self.stop_download_button.grid(row=0, column=1, sticky="e", padx=(10, 20), pady=(14, 8))
+        self.stop_download_button.grid(
+            row=0, column=1, sticky="e", padx=(10, 20), pady=(14, 8)
+        )
         self.download_progress_bar = ctk.CTkProgressBar(
             self.download_progress_frame,
             variable=self.download_progress_value,
@@ -958,41 +1042,50 @@ class TaglishTranscriberApp(_Controller):
             progress_color=COLORS["accent"],
             fg_color=COLORS["surface_raised"],
         )
-        self.download_progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=20)
+        self.download_progress_bar.grid(
+            row=1, column=0, columnspan=2, sticky="ew", padx=20
+        )
         ctk.CTkLabel(
             self.download_progress_frame,
             textvariable=self.download_progress_text_var,
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=12),
-        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=20, pady=(8, 18))
+        ).grid(
+            row=2, column=0, columnspan=2, sticky="w", padx=20, pady=(8, 18)
+        )
         self.download_progress_frame.grid_remove()
 
-        comparison = self._card(page, row=3, column=0, sticky="ew", padx=28, pady=(0, 16))
-        comparison.grid_columnconfigure((0, 1), weight=1)
+        compatibility = self._card(
+            page, row=4, column=0, sticky="nsew", padx=28, pady=(0, 24)
+        )
+        compatibility.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
-            comparison,
-            text="Quick guidance",
+            compatibility,
+            text="Availability on this PC",
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
-        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(18, 8))
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 8))
         ctk.CTkLabel(
-            comparison,
+            compatibility,
             text=(
-                "Compact\nFastest and smallest\n\n"
-                "Balanced\nGood CPU accuracy"
+                "✓ Recommended    ! May run slowly or could not be fully confirmed    "
+                "× Unavailable for download"
             ),
+            text_color=COLORS["muted"],
             justify="left",
-            text_color=COLORS["text_secondary"],
-        ).grid(row=1, column=0, sticky="nw", padx=20, pady=(0, 20))
+            anchor="w",
+            wraplength=900,
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 10))
         ctk.CTkLabel(
-            comparison,
-            text=(
-                "Best Overall\nRecommended for most users\n\n"
-                "Maximum Accuracy\nStrongest quality, largest download"
-            ),
-            justify="left",
+            compatibility,
+            textvariable=self.hardware_compatibility_var,
             text_color=COLORS["text_secondary"],
-        ).grid(row=1, column=1, sticky="nw", padx=20, pady=(0, 20))
+            justify="left",
+            anchor="nw",
+            wraplength=920,
+            font=ctk.CTkFont(family=self.font_family, size=12),
+        ).grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 18))
 
     def _build_settings_page(self) -> None:
         page = self._page_frame("Settings")
@@ -1345,6 +1438,101 @@ class TaglishTranscriberApp(_Controller):
         profile = self._selected_topic_profile()
         self.settings.topic_profile_id = profile.id
         return profile.context_prompt(), profile.terms_for_recognition()
+    def _hardware_model_selection_options(self) -> tuple[str, ...]:
+        labels: list[str] = [MODEL_PLACEHOLDER]
+        for model_name in MODEL_OPTIONS:
+            capability = self.hardware_assessment.capability(model_name)
+            if capability.download_allowed or is_model_downloaded(model_name):
+                labels.append(model_display_label(model_name))
+        return tuple(labels)
+
+    def _refresh_hardware_advice(self, *, update_selector: bool) -> None:
+        assessment = self.hardware_assessment
+        self.hardware_summary_var.set(assessment.snapshot.summary())
+        recommended_name = model_friendly_name(assessment.recommended_model)
+        maximum = assessment.capability("large-v3")
+        recommendation = f"Recommended daily-use option: {recommended_name}."
+        if maximum.status == STATUS_UNAVAILABLE:
+            recommendation += " Maximum Accuracy is unavailable for download on this PC."
+        elif maximum.status == STATUS_CAUTION:
+            recommendation += (
+                " Maximum Accuracy may work, but Live Scribe cannot confidently "
+                "predict its speed or stability on this PC."
+            )
+        else:
+            recommendation += (
+                " Maximum Accuracy is also supported, though Best Overall remains "
+                "the faster daily-use choice."
+            )
+        self.hardware_recommendation_var.set(recommendation)
+        self.hardware_compatibility_var.set(assessment.compatibility_text())
+
+        if update_selector and hasattr(self, "model_combo"):
+            options = self._hardware_model_selection_options()
+            self.model_combo.configure(values=list(options))
+            selected = self._selected_model_name()
+            if (
+                selected
+                and not is_model_downloaded(selected)
+                and not assessment.capability(selected).download_allowed
+            ):
+                self.model_var.set(MODEL_PLACEHOLDER)
+                self.settings.model_name = ""
+                self.settings.save()
+
+    def _show_first_run_hardware_notice(self) -> None:
+        self.first_run_hardware_notice = False
+        self.settings.hardware_check_completed = True
+        self.settings.hardware_check_version = HARDWARE_CHECK_VERSION
+        self.settings.save()
+        self._show_page("Models")
+        messagebox.showinfo(
+            "PC check complete",
+            self.hardware_assessment.buyer_notice(),
+        )
+
+    def _recheck_this_pc(self) -> None:
+        if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:
+            messagebox.showinfo(
+                "Please wait",
+                "Finish the active download, transcription, or WAV verification before checking this PC again.",
+            )
+            return
+
+        self.recheck_pc_button.configure(state="disabled", text="Checking…")
+        self.status_var.set("Checking PC")
+        self.activity_var.set("Checking RAM, CPU, GPU compatibility, and free model storage.")
+        self.root.update_idletasks()
+
+        try:
+            self.hardware_assessment = assess_this_pc()
+            save_hardware_assessment(self.hardware_assessment)
+            self.settings.hardware_check_completed = True
+            self.settings.hardware_check_version = HARDWARE_CHECK_VERSION
+            self._refresh_hardware_advice(update_selector=True)
+            self._update_model_summary()
+            self._update_model_status()
+            self._set_controls_for_idle()
+            self.settings.save()
+        finally:
+            self.recheck_pc_button.configure(state="normal", text="Check This PC Again")
+
+        self.status_var.set("PC checked")
+        self.activity_var.set(
+            f"PC check complete. Recommended: "
+            f"{model_friendly_name(self.hardware_assessment.recommended_model)}."
+        )
+        messagebox.showinfo(
+            "PC check complete",
+            self.hardware_assessment.buyer_notice(),
+        )
+
+    def _model_capability_note(self, model_name: str) -> str:
+        if model_name not in MODEL_OPTIONS:
+            return ""
+        capability = self.hardware_assessment.capability(model_name)
+        return f"{capability.headline}. {capability.detail}".strip()
+
     def _selected_model_name(self) -> str:
         return model_id_from_display(self.model_var.get())
 
@@ -1360,21 +1548,37 @@ class TaglishTranscriberApp(_Controller):
         model_name = self._selected_model_name()
         if not model_name:
             self.model_summary_var.set(
-                "Choose the level that matches the buyer's computer and accuracy needs. "
-                "Only the selected quality is downloaded."
+                "Choose from the qualities Live Scribe considers usable on this PC. "
+                "Unavailable downloads are removed from this selector."
             )
             return
+        capability_note = self._model_capability_note(model_name)
         self.model_summary_var.set(
-            f"{model_short_description(model_name)}.\n{model_long_description(model_name)}"
+            f"{model_short_description(model_name)}.\n"
+            f"{model_long_description(model_name)}\n\n"
+            f"PC check: {capability_note}"
         )
 
     def _update_model_status(self) -> None:
-        self.model_status_var.set(model_status(self._selected_model_name()))
+        model_name = self._selected_model_name()
+        status = model_status(model_name)
+        if model_name in MODEL_OPTIONS:
+            capability = self.hardware_assessment.capability(model_name)
+            if capability.status == STATUS_UNAVAILABLE:
+                if is_model_downloaded(model_name):
+                    status += " This installed model is disabled on this PC by the capability check."
+                else:
+                    status += " Download disabled by the PC capability check."
+            elif capability.status == STATUS_CAUTION:
+                status += " Hardware note: performance is uncertain."
+        self.model_status_var.set(status)
 
     def _collect_settings(self) -> AppSettings:
         settings = super()._collect_settings()
         settings.theme_name = self.theme_var.get()
         settings.topic_profile_id = self._selected_topic_profile().id
+        settings.hardware_check_completed = self.settings.hardware_check_completed
+        settings.hardware_check_version = self.settings.hardware_check_version
         return settings
 
     def _set_settings_state(self, state: str) -> None:
@@ -1399,6 +1603,18 @@ class TaglishTranscriberApp(_Controller):
         enabled = "normal" if state == "readonly" else "disabled"
         self.detect_button.configure(state=enabled)
         self.manage_topics_button.configure(state=enabled)
+        if hasattr(self, "recheck_pc_button"):
+            self.recheck_pc_button.configure(state=enabled)
+
+    def _set_controls_for_idle(self) -> None:
+        super()._set_controls_for_idle()
+        model_name = self._selected_model_name()
+        if not model_name:
+            return
+        capability = self.hardware_assessment.capability(model_name)
+        if capability.status == STATUS_UNAVAILABLE:
+            self.start_button.configure(state="disabled")
+            self.download_model_button.configure(state="disabled")
 
     def _download_model_requested(self) -> None:
         if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:
@@ -1412,6 +1628,22 @@ class TaglishTranscriberApp(_Controller):
             return
         friendly = model_friendly_name(model_name)
         size = model_size_label(model_name)
+        capability = self.hardware_assessment.capability(model_name)
+        if capability.status == STATUS_UNAVAILABLE:
+            installed_note = (
+                "This model is already stored locally, but Live Scribe has disabled it on this PC."
+                if is_model_downloaded(model_name)
+                else "Live Scribe has disabled this model download on this PC."
+            )
+            messagebox.showwarning(
+                "Unavailable on this PC",
+                f"{friendly} is unavailable on this PC.\n\n"
+                f"{installed_note}\n\n"
+                f"{capability.detail}\n\n"
+                "Choose another speech quality or improve the detected limitation and click Check This PC Again.",
+            )
+            self._set_controls_for_idle()
+            return
         if is_model_downloaded(model_name):
             messagebox.showinfo(
                 "Already downloaded",
@@ -1419,11 +1651,18 @@ class TaglishTranscriberApp(_Controller):
             )
             self._set_controls_for_idle()
             return
+        hardware_warning = ""
+        if capability.status == STATUS_CAUTION:
+            hardware_warning = (
+                f"\n\nPC capability note:\n{capability.detail}\n"
+                "This option is allowed because Live Scribe cannot determine with certainty that it will fail."
+            )
         approved = messagebox.askokcancel(
             "Download speech quality",
             f"Download {friendly} ({size}) now?\n\n"
             "Only this selected AI speech model will be downloaded. Keep Live Scribe open "
-            "and stay connected until the progress card disappears. Future sessions can reuse it offline.",
+            "and stay connected until the progress card disappears. Future sessions can reuse it offline."
+            f"{hardware_warning}",
         )
         if not approved:
             return

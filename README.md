@@ -5,7 +5,7 @@
 
 **Portable offline live transcription for English, Tagalog/Filipino, and natural Taglish.**
 
-Version **0.6.0** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
+Version **0.6.1** uses two explicit stages: a fast live transcript while the speaker is talking, followed—only when the user clicks **Verify from WAV**—by a careful full-recording review. **Stop & Save WAV** only ends the live session and safely saves the recording.
 
 ## Modern interface
 
@@ -132,7 +132,7 @@ Do not paste a complete transcript or manuscript. Topic context is only a
 recognition hint. Important information must still be checked against the WAV.
 
 
-## What v0.6.0 does
+## What v0.6.1 does
 
 - Automatically selects the operating system's default input microphone when available.
 - Lets the user choose another detected microphone.
@@ -331,8 +331,56 @@ python -m pip install -r requirements-build.txt
 python scripts/build_portable.py
 ```
 
-Create and push a tag such as `v0.6.0` to generate a GitHub Release automatically.
+Create and push a tag such as `v0.6.1` to generate a GitHub Release automatically.
 
 ## Accuracy notice
 
 The same warning is displayed permanently inside the app and included in formatted DOCX reports. AI-assisted transcription can make mistakes. Always replay the saved WAV when exact names, dates, amounts, addresses, quotations, legal wording, medical wording, or safety-critical instructions matter. Several people speaking at once will reduce accuracy.
+
+## First-run PC capability check
+
+On the first launch, Live Scribe checks the computer before offering speech-model
+downloads. The check uses locally detected information only:
+
+- total system RAM
+- CPU thread count
+- processor architecture
+- available storage in the portable model folder
+- whether CTranslate2 can access a compatible NVIDIA GPU
+- NVIDIA model name and VRAM when `nvidia-smi` is available
+
+No hardware information is uploaded.
+
+Each buyer-facing speech quality receives one of three results:
+
+- **Recommended for this PC** — the detected computer meets Live Scribe's
+  conservative comfort guidance.
+- **May run slowly — check the note** — the model remains available because
+  Live Scribe cannot determine with certainty that it will fail.
+- **Unavailable on this PC** — the model is removed from the download selector
+  because RAM, storage, or processor architecture is clearly below the app's
+  conservative minimum.
+
+The largest **Maximum Accuracy** option stays available with a clear warning when
+the result is uncertain. It is disabled only when the app detects a definite
+minimum problem such as insufficient RAM or storage.
+
+Open **Models** and choose **Check This PC Again** after:
+
+- moving the portable folder to another computer
+- adding RAM
+- freeing storage
+- configuring an NVIDIA GPU
+- changing the drive used by the portable app
+
+Live Scribe saves the last local report in:
+
+```text
+data/hardware_profile.json
+```
+
+The compatibility result is a conservative estimate, not a performance
+guarantee. Actual speed also depends on audio length, background applications,
+CPU generation, cooling, and the selected processing mode.
+
+

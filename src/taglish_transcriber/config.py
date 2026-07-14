@@ -196,6 +196,8 @@ class AppSettings:
     include_live_appendix: bool = True
     theme_name: str = THEME_OLED
     topic_profile_id: str = DEFAULT_TOPIC_PROFILE_ID
+    hardware_check_completed: bool = False
+    hardware_check_version: int = 0
 
     @classmethod
     def load(cls, path: Path = SETTINGS_FILE) -> "AppSettings":
@@ -236,6 +238,10 @@ class AppSettings:
             settings.theme_name = THEME_OLED
         if not isinstance(settings.topic_profile_id, str) or not settings.topic_profile_id.strip():
             settings.topic_profile_id = DEFAULT_TOPIC_PROFILE_ID
+        if not isinstance(settings.hardware_check_completed, bool):
+            settings.hardware_check_completed = False
+        if not isinstance(settings.hardware_check_version, int):
+            settings.hardware_check_version = 0
         return settings
 
     def save(self, path: Path = SETTINGS_FILE) -> None:

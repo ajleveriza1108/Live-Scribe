@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.6.0 — BUYER QUICK GUIDE
+LIVE SCRIBE v0.6.1 — BUYER QUICK GUIDE
 ================================================
 
 WHAT IT DOES
@@ -154,4 +154,21 @@ be reused later. It does not require another LLM or model download.
 
 A Topic Profile is a recognition hint only. Always verify important names,
 numbers, dates, quotations, and decisions against the saved WAV.
+
+FIRST-RUN PC CHECK
+------------------
+Live Scribe checks RAM, CPU threads, free model storage, processor architecture,
+and compatible NVIDIA GPU access before offering model downloads. The check is
+performed locally. Hardware information is not uploaded.
+
+Speech qualities are marked Recommended, May run slowly, or Unavailable.
+Unavailable models are removed from the download selector. A model remains
+available with a warning when Live Scribe is not certain that it will fail.
+
+Open Models and click "Check This PC Again" after moving the portable folder to
+another computer, adding RAM, freeing storage, or changing GPU setup.
+
+This is a conservative estimate, not a speed or accuracy guarantee. Close
+memory-heavy programs during transcription and always verify important content
+against the saved WAV.
 

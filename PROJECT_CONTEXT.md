@@ -2,7 +2,7 @@
 
 ## Current version
 
-0.6.0
+0.6.1
 
 ## Repository
 
@@ -74,7 +74,7 @@ A portable, cross-platform, local-first desktop transcription product for Englis
 
 Optional packs must be separately downloadable, license-reviewed, checksum-verified, removable, and disabled by default.
 
-## v0.6.0 interface direction
+## v0.6.1 interface direction
 
 The approved buyer interface is CustomTkinter-based, with OLED Black and Dirty
 White themes, compact left navigation, transcript-first Live Session page,
@@ -92,7 +92,7 @@ The UI must not describe this as deleting or restarting the model.
 The manager exposes explicit Add New, Save Changes, and Remove Selected operations.
 Editing may change both the correct written spelling and its pronunciation aliases.
 
-## v0.6.0 topic profile direction
+## v0.6.1 topic profile direction
 
 Live Scribe now includes local editable Topic Profiles. The user chooses a
 profile before starting a session. Topic terms are prioritized in Faster-Whisper
@@ -103,4 +103,20 @@ Starter profiles cover general conversation, office meetings, classes,
 Zoom/Google Meet, interviews, church, livestreams, technology, e-commerce, and
 news. Users can add, edit, or remove profiles in the modern Topics page. No LLM
 or separate model download is involved.
+
+## v0.6.1 hardware guidance
+
+Live Scribe performs a local hardware assessment at every startup and displays a
+buyer-facing notice on the first run. The assessment checks RAM, CPU threads,
+architecture, model-drive free storage, CTranslate2 CUDA availability, and
+NVIDIA VRAM when available.
+
+Hard download blocking is intentionally limited to clear conditions:
+unsupported architecture, RAM below the conservative model minimum, or
+insufficient storage for the unfinished download plus a safety reserve. CPU
+speed and uncertain GPU support generate caution notes rather than blocks.
+
+The Models page filters unavailable downloads, shows all four compatibility
+results, and includes Check This PC Again for portable copies moved between PCs.
+The result is saved to data/hardware_profile.json and is never uploaded.
 
