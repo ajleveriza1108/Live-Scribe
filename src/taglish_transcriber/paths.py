@@ -41,6 +41,8 @@ DATA_DIR = APP_ROOT / "data"
 MODEL_DIR = APP_ROOT / "models"
 EXPORT_DIR = APP_ROOT / "exports"
 RECORDING_DIR = APP_ROOT / "recordings"
+RECORDING_IN_PROGRESS_DIR = RECORDING_DIR / "In Progress"
+RECORDING_FINAL_DIR = RECORDING_DIR / "Final Output"
 SKILLS_DIR = APP_ROOT / "Skills"
 KNOWLEDGE_DIR = APP_ROOT / "Knowledge"
 DICTIONARY_DIR = APP_ROOT / "dictionary"
@@ -92,6 +94,8 @@ def ensure_app_directories() -> None:
             MODEL_DIR,
             EXPORT_DIR,
             RECORDING_DIR,
+            RECORDING_IN_PROGRESS_DIR,
+            RECORDING_FINAL_DIR,
             SKILLS_DIR,
             KNOWLEDGE_DIR,
             DICTIONARY_DIR,
@@ -123,7 +127,7 @@ def new_recording_path(title: str = "") -> Path:
     ensure_app_directories()
     stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     name = safe_filename_part(title)
-    return RECORDING_DIR / f"{stamp}_{name}.wav"
+    return RECORDING_FINAL_DIR / f"{stamp}_{name}.wav"
 
 
 def atomic_write_text(

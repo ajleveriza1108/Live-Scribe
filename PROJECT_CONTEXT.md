@@ -149,3 +149,36 @@ portable storage manager. No new LLM or large AI model is included.
 Portable recordings and enhanced WAV paths are serialized relative to APP_ROOT
 when possible so saved sessions survive flash-drive letter or mount changes.
 
+## v0.7.1 first-run, recorded-file visibility, privacy, and recording folders
+
+The automatic PC compatibility popup now depends only on
+`hardware_check_completed`. A hardware-check implementation version increase no
+longer causes the automatic popup to return. Manual Check This PC Again still
+shows a requested report.
+
+Recorded-file transcription is promoted in a dedicated Live Session panel
+labeled "Already have a recorded video or audio file?" with a
+"Choose Video or Audio File" action.
+
+Vocabulary pages explicitly state that vocabulary, topics, sessions,
+recordings, and exports stay in the portable app folder and are not uploaded by
+Live Scribe.
+
+Live recordings are split into `recordings/In Progress/<session>/part_*.wav`.
+The merged file is saved under `recordings/Final Output/`. Safety parts are
+retained until the user removes them through Storage Manager. Keeping both forms
+uses extra space; completed parts can be safely cleaned after the final WAV is
+confirmed.
+
+## v0.7.2 model-download progress correction
+
+Download progress now reserves 100% for the verified `complete` phase. All
+other phases are capped at 99%. The modern and legacy UIs switch to
+indeterminate animation during `finalizing`, after model data is received but
+before required files are confirmed.
+
+`_ProgressTracker.set_initial_bytes` primes resumed data without calculating it
+as newly transferred bytes. Unrealistic filesystem rename/copy spikes above
+10 GB/s are ignored by the speed smoother. Download units use decimal KB/MB/GB
+to align with buyer-facing model-size labels.
+

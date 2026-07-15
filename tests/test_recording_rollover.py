@@ -30,7 +30,8 @@ def test_recorder_combines_parts_on_normal_close(tmp_path: Path) -> None:
     recorder.close()
 
     assert output.is_file()
-    assert not recording_parts_dir(output).exists()
+    assert recording_parts_dir(output).is_dir()
+    assert list(recording_parts_dir(output).glob("part_*.wav"))
     with wave.open(str(output), "rb") as wav_file:
         assert wav_file.getnframes() == 1600
 

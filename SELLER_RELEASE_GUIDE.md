@@ -84,3 +84,27 @@ Before selling a build, test:
 Do not advertise every codec as guaranteed on every operating system. State that
 support depends on the codec being readable by the included PyAV build.
 
+## v0.7.1 buyer-release checks
+
+- Confirm the automatic PC report appears once on a fresh data/settings.json and
+  does not return on the next launch.
+- Confirm Models > Check This PC Again still produces a visible requested report.
+- Confirm the Live Session page clearly shows Choose Video or Audio File.
+- Confirm Vocabulary Manager displays its offline/local-data notice.
+- Confirm active recording parts appear in recordings/In Progress.
+- Confirm Stop & Save WAV creates the merged file in recordings/Final Output.
+- Confirm Delete Completed Parts preserves the Final Output WAV.
+- Confirm Delete All In-Progress requires a strong warning.
+- Explain that keeping both parts and the merged WAV increases buyer storage.
+
+## v0.7.2 download-progress test
+
+Before publishing:
+
+- Start a fresh model download and confirm normal percentage movement.
+- Stop after partial progress, reopen the app, and resume.
+- Confirm resumed bytes do not produce an impossible TB/s speed.
+- Confirm an incomplete download never displays a full 100% bar.
+- Confirm the card changes to Finalizing with an animated bar.
+- Confirm 100% appears only immediately before the verified ready state.
+

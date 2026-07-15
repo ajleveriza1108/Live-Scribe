@@ -32,6 +32,8 @@ from .session import SessionEvent
 from .session_store import SessionStore
 from .skill_library import SkillLibrary
 from .storage_manager import (
+    clean_all_recording_parts,
+    clean_completed_recording_parts,
     clean_partial_downloads,
     clean_temporary_files,
     format_size,
@@ -99,8 +101,16 @@ class ProductivityFeaturesMixin:
             columnspan=3,
             sticky="ew",
             padx=16,
-            pady=(0, 14),
+            pady=(0, 12),
         )
+
+        recorded_file_panel = ctk.CTkFrame(self.input_card, corner_radius=10, fg_color=self._color("surface_raised"), border_color=self._color("border"), border_width=1)
+        recorded_file_panel.grid(row=7, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 14))
+        recorded_file_panel.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(recorded_file_panel, text="Already have a recorded video or audio file?", text_color=self._color("text"), font=ctk.CTkFont(family=self.font_family, size=13, weight="bold")).grid(row=0,column=0,sticky="w",padx=14,pady=(12,3))
+        ctk.CTkLabel(recorded_file_panel, text="Choose an MP4, MKV, MP3, WAV, or another supported recording. Live Scribe reads its audio track and keeps the original file unchanged.", text_color=self._color("text_secondary"), justify="left", anchor="w", wraplength=700, font=ctk.CTkFont(family=self.font_family,size=11)).grid(row=1,column=0,sticky="ew",padx=14,pady=(0,12))
+        self.import_media_primary_button = ctk.CTkButton(recorded_file_panel, text="Choose Video or Audio File", command=self._transcribe_file_requested, width=200, height=38, corner_radius=8, fg_color=self._color("success"), hover_color=self._color("success"), text_color="#FFFFFF")
+        self.import_media_primary_button.grid(row=0,column=1,rowspan=2,sticky="e",padx=14,pady=12)
 
         self.audio_level_var = tk.DoubleVar(value=0.0)
         self.audio_level_text_var = tk.StringVar(value="Waiting for audio")
@@ -147,7 +157,7 @@ class ProductivityFeaturesMixin:
 
         self.import_media_button = ctk.CTkButton(
             self.action_bar,
-            text="Transcribe File",
+            text="Transcribe Video / Audio",
             command=self._transcribe_file_requested,
             height=42,
             corner_radius=9,
@@ -413,6 +423,8 @@ class ProductivityFeaturesMixin:
             self.pause_button.configure(state="disabled")
         if hasattr(self, "import_media_button"):
             self.import_media_button.configure(state="disabled")
+        if hasattr(self, "import_media_primary_button"):
+            self.import_media_primary_button.configure(state="disabled")
         if hasattr(self, "session_title_entry"):
             self.session_title_entry.configure(state="disabled")
 
@@ -420,6 +432,8 @@ class ProductivityFeaturesMixin:
         super()._set_controls_for_listening()
         self.pause_button.configure(state="normal", text="Pause")
         self.import_media_button.configure(state="disabled")
+        if hasattr(self, "import_media_primary_button"):
+            self.import_media_primary_button.configure(state="disabled")
         self.session_title_entry.configure(state="disabled")
 
     def _set_controls_for_idle(self) -> None:
@@ -435,7 +449,10 @@ class ProductivityFeaturesMixin:
                 and is_model_downloaded(model_name)
                 and not (self.model_loading or self.model_downloading or self.finalizing)
             )
-            self.import_media_button.configure(state="normal" if allowed else "disabled")
+            state = "normal" if allowed else "disabled"
+            self.import_media_button.configure(state=state)
+            if hasattr(self, "import_media_primary_button"):
+                self.import_media_primary_button.configure(state=state)
         if hasattr(self, "verify_wav_button") and self.document.recording_path:
             if self.document.source_type == "imported":
                 self.verify_wav_button.configure(
@@ -1130,7 +1147,7 @@ class ProductivityFeaturesMixin:
             window,
             text=(
                 "Remove unused speech models or clean stopped downloads and temporary files. "
-                "Recordings are never deleted automatically."
+                "Live recording parts are kept in Recordings/In Progress, while the merged WAV is saved in Recordings/Final Output. Keeping both copies uses additional space."
             ),
             justify="left",
             wraplength=700,
@@ -1164,11 +1181,9 @@ class ProductivityFeaturesMixin:
             text="Clean Partial Downloads",
             command=self._clean_partial_storage,
         ).pack(side="left", padx=6)
-        ctk.CTkButton(
-            buttons,
-            text="Clean Temporary Files",
-            command=self._clean_temp_storage,
-        ).pack(side="left", padx=6)
+        ctk.CTkButton(buttons, text="Clean Temporary Files", command=self._clean_temp_storage).pack(side="left", padx=6)
+        ctk.CTkButton(buttons, text="Delete Completed Parts", command=self._clean_completed_recording_parts).pack(side="left", padx=6)
+        ctk.CTkButton(buttons, text="Delete All In-Progress", command=self._clean_all_recording_parts, fg_color=self._color("danger"), hover_color=self._color("danger"), text_color="#FFFFFF").pack(side="left", padx=6)
         ctk.CTkButton(
             buttons,
             text="Close",
@@ -1227,6 +1242,20 @@ class ProductivityFeaturesMixin:
         removed = clean_temporary_files()
         self._refresh_storage_tree()
         self.activity_var.set(f"Cleaned {format_size(removed)} of temporary files.")
+
+    def _clean_completed_recording_parts(self) -> None:
+        if not messagebox.askyesno("Delete completed recording parts", "Delete unmerged safety parts only when a matching merged WAV already exists in Recordings/Final Output?\n\nThis frees storage without deleting the final WAV.", parent=self.storage_window):
+            return
+        removed = clean_completed_recording_parts()
+        self._refresh_storage_tree()
+        self.activity_var.set(f"Deleted {format_size(removed)} of completed in-progress audio parts.")
+
+    def _clean_all_recording_parts(self) -> None:
+        if not messagebox.askyesno("Delete all in-progress audio", "This permanently deletes every unmerged WAV part in Recordings/In Progress.\n\nUnfinished sessions that do not yet have a merged final WAV may no longer be recoverable. Final Output WAV files are not deleted.\n\nContinue?", parent=self.storage_window):
+            return
+        removed = clean_all_recording_parts()
+        self._refresh_storage_tree()
+        self.activity_var.set(f"Deleted {format_size(removed)} of in-progress recording parts.")
 
     # ------------------------------------------------------------------
     # Safe close

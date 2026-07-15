@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import shutil
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from .config import MODEL_OPTIONS, model_friendly_name, model_size_label
 from .models import is_model_downloaded, local_model_path
-from .paths import CACHE_DIR, MODEL_DIR, RECORDING_DIR, TEMP_DIR
+from .paths import CACHE_DIR, MODEL_DIR, RECORDING_FINAL_DIR, RECORDING_IN_PROGRESS_DIR, TEMP_DIR
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +74,8 @@ def storage_items() -> list[StorageItem]:
             StorageItem("partial", "Partial model downloads", partial_size, "Resumable data"),
             StorageItem("temp", "Temporary files", directory_size(TEMP_DIR), "Safe to clean when idle"),
             StorageItem("cache", "Supporting cache", directory_size(CACHE_DIR), "Used by portable runtime"),
-            StorageItem("recordings", "Recordings", directory_size(RECORDING_DIR), "User files"),
+            StorageItem("recordings-in-progress", "Recordings — In Progress", directory_size(RECORDING_IN_PROGRESS_DIR), "Unmerged safety parts"),
+            StorageItem("recordings-final", "Recordings — Final Output", directory_size(RECORDING_FINAL_DIR), "Merged WAV files"),
         ]
     )
     return items
@@ -109,15 +109,24 @@ def clean_temporary_files() -> int:
     return removed
 
 
-def clean_orphan_recording_parts(*, older_than_hours: int = 24) -> int:
-    cutoff = time.time() - max(1, older_than_hours) * 3600
+def clean_completed_recording_parts() -> int:
     removed = 0
-    for folder in RECORDING_DIR.glob("*.parts"):
-        try:
-            if folder.stat().st_mtime >= cutoff:
-                continue
-        except OSError:
+    RECORDING_IN_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
+    RECORDING_FINAL_DIR.mkdir(parents=True, exist_ok=True)
+    for folder in RECORDING_IN_PROGRESS_DIR.iterdir():
+        if not folder.is_dir():
+            continue
+        final_wav = RECORDING_FINAL_DIR / f"{folder.name}.wav"
+        if not final_wav.is_file():
             continue
         removed += directory_size(folder)
         shutil.rmtree(folder, ignore_errors=True)
+    return removed
+
+
+def clean_all_recording_parts() -> int:
+    removed = directory_size(RECORDING_IN_PROGRESS_DIR)
+    if RECORDING_IN_PROGRESS_DIR.exists():
+        shutil.rmtree(RECORDING_IN_PROGRESS_DIR, ignore_errors=True)
+    RECORDING_IN_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
     return removed

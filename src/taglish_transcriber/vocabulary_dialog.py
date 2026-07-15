@@ -37,7 +37,7 @@ class VocabularyPronunciationDialog:
         container = ctk.CTkFrame(self.window, fg_color="transparent")
         container.grid(row=0, column=0, sticky="nsew", padx=22, pady=22)
         container.grid_columnconfigure(0, weight=1)
-        container.grid_rowconfigure(3, weight=1)
+        container.grid_rowconfigure(4, weight=1)
 
         ctk.CTkLabel(
             container,
@@ -55,8 +55,14 @@ class VocabularyPronunciationDialog:
             text_color=("#625D55", "#A7B0BA"),
         ).grid(row=1, column=0, sticky="w", pady=(4, 14))
 
+        privacy_note = ctk.CTkFrame(container, corner_radius=10, fg_color=("#F5F2EB", "#171C22"), border_color=("#D5D0C5", "#252B33"), border_width=1)
+        privacy_note.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        privacy_note.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(privacy_note, text="Offline and private on this device", font=ctk.CTkFont(size=13, weight="bold")).grid(row=0,column=0,sticky="w",padx=14,pady=(11,3))
+        ctk.CTkLabel(privacy_note, text="Vocabulary and pronunciation entries stay inside this portable Live Scribe folder on your PC or USB drive. Live Scribe does not upload them.", wraplength=780, justify="left", text_color=("#625D55", "#A7B0BA")).grid(row=1,column=0,sticky="w",padx=14,pady=(0,11))
+
         form = ctk.CTkFrame(container, corner_radius=12)
-        form.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+        form.grid(row=3, column=0, sticky="ew", pady=(0, 12))
         form.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(form, text="Correct written spelling").grid(
@@ -113,7 +119,7 @@ class VocabularyPronunciationDialog:
         self.edit_button.pack(side="left")
 
         list_frame = ctk.CTkFrame(container, corner_radius=12)
-        list_frame.grid(row=3, column=0, sticky="nsew")
+        list_frame.grid(row=4, column=0, sticky="nsew")
         list_frame.grid_columnconfigure(0, weight=1)
         list_frame.grid_rowconfigure(1, weight=1)
         ctk.CTkLabel(
@@ -163,7 +169,7 @@ class VocabularyPronunciationDialog:
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         lower = ctk.CTkFrame(container, fg_color="transparent")
-        lower.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        lower.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         lower.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             lower,

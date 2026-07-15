@@ -633,11 +633,12 @@ class TaglishTranscriberApp:
 
     @staticmethod
     def _format_download_bytes(value: float) -> str:
+        """Use decimal download units to match buyer-facing model sizes."""
         value = max(0.0, float(value))
         units = ("B", "KB", "MB", "GB", "TB")
         unit_index = 0
-        while value >= 1024.0 and unit_index < len(units) - 1:
-            value /= 1024.0
+        while value >= 1000.0 and unit_index < len(units) - 1:
+            value /= 1000.0
             unit_index += 1
         decimals = 0 if unit_index == 0 else 1 if value >= 10 else 2
         return f"{value:.{decimals}f} {units[unit_index]}"
@@ -690,7 +691,12 @@ class TaglishTranscriberApp:
             return
 
         percent = progress.percent
-        if percent is None:
+
+        if progress.phase in {"preparing", "finalizing"}:
+            self.download_progress_bar.stop()
+            self.download_progress_bar.configure(mode="indeterminate")
+            self.download_progress_bar.start(12)
+        elif percent is None:
             if str(self.download_progress_bar.cget("mode")) != "indeterminate":
                 self.download_progress_bar.configure(mode="indeterminate")
                 self.download_progress_bar.start(12)
@@ -704,6 +710,22 @@ class TaglishTranscriberApp:
             self.status_var.set("Preparing download…")
             self.download_progress_text_var.set(detail)
             return
+
+        if progress.phase == "finalizing":
+            self.status_var.set("Finalizing model…")
+            self.download_progress_text_var.set(
+                progress.message
+                or (
+                    "The model data has been received. Live Scribe is finishing "
+                    "remaining files and verifying offline readiness."
+                )
+            )
+            return
+
+        if progress.phase == "complete":
+            self.download_progress_bar.stop()
+            self.download_progress_bar.configure(mode="determinate")
+            self.download_progress_value.set(1.0)
 
         size_parts: list[str] = []
         downloaded = self._format_download_bytes(progress.downloaded_bytes)
@@ -724,14 +746,23 @@ class TaglishTranscriberApp:
             size_parts.append(f"{speed}/s")
 
         eta = self._format_download_eta(progress.eta_seconds)
-        if eta:
+        if (
+            eta
+            and progress.phase == "downloading"
+            and (percent is None or percent < 99.0)
+        ):
             size_parts.append(eta)
+
+        if progress.phase == "complete":
+            size_parts.append("ready for offline use")
 
         self.download_progress_text_var.set(
             f"{progress.model_name}: " + "  •  ".join(size_parts)
         )
 
-        if percent is None:
+        if progress.phase == "complete":
+            self.status_var.set("Model ready.")
+        elif percent is None:
             self.status_var.set("Downloading model…")
         else:
             self.status_var.set(f"Downloading model… {percent:.0f}%")

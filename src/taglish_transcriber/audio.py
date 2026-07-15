@@ -12,6 +12,8 @@ from typing import Any, Callable
 
 import numpy as np
 
+from .paths import RECORDING_IN_PROGRESS_DIR
+
 TARGET_SAMPLE_RATE = 16_000
 SYSTEM_AUDIO_SAMPLE_RATE = 48_000
 
@@ -310,7 +312,7 @@ def downmix_to_mono(samples: np.ndarray) -> np.ndarray:
 
 
 def recording_parts_dir(path: Path) -> Path:
-    return path.with_name(path.stem + ".parts")
+    return RECORDING_IN_PROGRESS_DIR / path.stem
 
 
 def list_recording_parts(path: Path) -> list[Path]:
@@ -371,13 +373,6 @@ def recover_rolling_recording(path: Path) -> bool:
     try:
         combine_wav_parts(parts, path)
         if path.is_file():
-            folder = recording_parts_dir(path)
-            for part in parts:
-                part.unlink(missing_ok=True)
-            try:
-                folder.rmdir()
-            except OSError:
-                pass
             return True
         return False
     except Exception:
@@ -433,14 +428,6 @@ class WavRecorder(threading.Thread):
 
     def _combine_and_clean(self) -> None:
         combine_wav_parts(self.part_paths, self.path)
-        folder = recording_parts_dir(self.path)
-        try:
-            for part in self.part_paths:
-                part.unlink(missing_ok=True)
-            folder.rmdir()
-        except OSError:
-            # The final WAV is already safe; leftover parts can be removed by storage cleanup.
-            pass
 
     def run(self) -> None:
         wav_file = None

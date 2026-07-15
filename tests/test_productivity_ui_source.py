@@ -11,7 +11,7 @@ def test_productivity_gui_exposes_requested_controls() -> None:
 
     for text in (
         "Pause",
-        "Transcribe File",
+        "Transcribe Video / Audio",
         "Floating Captions",
         "Transcript editor",
         "Set Speaker",

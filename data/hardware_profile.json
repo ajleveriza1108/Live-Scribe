@@ -1,6 +1,6 @@
 {
   "check_version": 2,
-  "checked_at": "2026-07-14T22:17:08.651849+00:00",
+  "checked_at": "2026-07-15T08:32:28.520882+00:00",
   "recommended_model": "large-v3-turbo",
   "snapshot": {
     "os_name": "Windows 10",
@@ -8,13 +8,13 @@
     "cpu_name": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
     "cpu_threads": 16,
     "total_ram_bytes": 34166939648,
-    "free_disk_bytes": 521161949184,
+    "free_disk_bytes": 521166237696,
     "cuda_device_count": 1,
     "gpu_name": "NVIDIA GeForce RTX 2050",
     "gpu_vram_bytes": 4294967296,
     "portable_drive_kind": "Fixed or external SSD",
     "portable_likely_removable": false,
-    "portable_write_mbps": 532.9584858750503,
+    "portable_write_mbps": 466.53759117861534,
     "portable_storage_status": "good",
     "portable_storage_note": "Live Scribe is using its own application folder for settings, models, recordings, exports, caches, and temporary files. The quick storage test is suitable for portable use. Model startup can still be slower than an internal SSD.",
     "notes": []

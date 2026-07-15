@@ -72,7 +72,8 @@ class ModelDownloadProgress:
         if self.total_bytes <= 0:
             return None
         value = (self.downloaded_bytes / self.total_bytes) * 100.0
-        return max(0.0, min(100.0, value))
+        upper_bound = 100.0 if self.phase == "complete" else 99.0
+        return max(0.0, min(upper_bound, value))
 
 
 class ModelLoadError(RuntimeError):
@@ -220,6 +221,19 @@ class _ProgressTracker:
         self._smoothed_speed = 0.0
         self._last_emit = 0.0
 
+    def set_initial_bytes(self, downloaded_bytes: int) -> None:
+        """Prime resumed progress without treating cached bytes as network speed."""
+        now = time.monotonic()
+        value = max(0, int(downloaded_bytes))
+        if self.total_bytes > 0:
+            value = min(value, self.total_bytes)
+        with self._lock:
+            self._max_bytes = value
+            self._last_bytes = value
+            self._last_time = now
+            self._started_at = now
+            self._smoothed_speed = 0.0
+
     def check_cancelled(self) -> None:
         _raise_if_download_cancelled(self.cancel_event)
 
@@ -250,7 +264,10 @@ class _ProgressTracker:
             delta = max(0, self._max_bytes - self._last_bytes)
             instant_speed = delta / elapsed
 
-            if instant_speed > 0:
+            # A completed file can be renamed into place almost instantly. That
+            # filesystem jump is not network speed and previously produced values
+            # such as terabytes per second after a resumed download.
+            if 0 < instant_speed <= 10_000_000_000:
                 if self._smoothed_speed <= 0:
                     self._smoothed_speed = instant_speed
                 else:
@@ -380,6 +397,7 @@ def download_model_once(
     )
 
     initial_bytes = _local_downloaded_bytes(target)
+    tracker.set_initial_bytes(initial_bytes)
     tracker.emit(
         phase="downloading",
         downloaded_bytes=initial_bytes,
@@ -398,9 +416,25 @@ def download_model_once(
             if cancel_event is not None and cancel_event.is_set():
                 return
             try:
+                downloaded_bytes = _local_downloaded_bytes(target)
+                required_files_present = all(
+                    (target / filename).is_file()
+                    for filename in MODEL_REQUIRED_FILES
+                )
+                expected_bytes_present = (
+                    tracker.total_bytes > 0
+                    and downloaded_bytes >= tracker.total_bytes
+                )
+                finalizing = required_files_present and expected_bytes_present
                 tracker.emit(
-                    phase="downloading",
-                    downloaded_bytes=_local_downloaded_bytes(target),
+                    phase="finalizing" if finalizing else "downloading",
+                    downloaded_bytes=downloaded_bytes,
+                    message=(
+                        "All expected model data is present. Finishing remaining "
+                        "files and verifying the model…"
+                        if finalizing
+                        else ""
+                    ),
                 )
             except ModelDownloadCancelled:
                 return
@@ -444,6 +478,16 @@ def download_model_once(
         monitor_stop.set()
         monitor.join(timeout=1.0)
 
+    tracker.emit(
+        phase="finalizing",
+        downloaded_bytes=_local_downloaded_bytes(target),
+        message=(
+            "Download data received. Finalizing file placement and verifying "
+            "that the model is ready for offline use…"
+        ),
+        force=True,
+    )
+
     required_complete = all(
         (target / filename).is_file() for filename in MODEL_REQUIRED_FILES
     )
@@ -469,7 +513,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.7.0", encoding="utf-8")
+    (target / ".download-complete").write_text("0.7.2", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",

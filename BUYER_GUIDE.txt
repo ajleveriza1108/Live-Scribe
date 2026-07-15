@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.7.0 — BUYER GUIDE
+LIVE SCRIBE v0.7.2 — BUYER GUIDE
 
 WHAT LIVE SCRIBE DOES
 ---------------------
@@ -9,6 +9,19 @@ after one speech model has been downloaded.
 No additional LLM is required for pause/resume, session recovery, topic
 profiles, floating captions, transcript editing, speaker labels, markers,
 session search, or storage cleanup.
+
+
+MODEL DOWNLOAD PROGRESS
+-----------------------
+The download has separate Downloading, Finalizing, and Ready stages.
+
+The bar will not display 100% while Hugging Face is still completing or
+verifying files. At the end of the transfer, the card changes to Finalizing and
+uses an animated bar. Keep Live Scribe open until the ready message appears and
+the progress card closes.
+
+A resumed download may begin at a high percentage because partial files were
+kept. Existing bytes are not counted as new download speed.
 
 FIRST USE
 ---------

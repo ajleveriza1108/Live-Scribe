@@ -140,7 +140,7 @@ if sys.platform == "darwin":
             "NSMicrophoneUsageDescription": (
                 "Live Scribe needs audio-input access to transcribe microphones and routed livestream audio."
             ),
-            "CFBundleShortVersionString": "0.7.0",
-            "CFBundleVersion": "0.7.0",
+            "CFBundleShortVersionString": "0.7.2",
+            "CFBundleVersion": "0.7.2",
         },
     )

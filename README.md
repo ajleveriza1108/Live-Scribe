@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.7.0**
+**Version 0.7.2**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -26,8 +26,11 @@ download.
 
 ### Recorded video or audio
 
+The feature is on **Live Session**, directly below the session-title field in
+the panel labeled **Already have a recorded video or audio file?**
+
 1. Download and select one speech quality.
-2. Click **Transcribe File**.
+2. Click **Choose Video or Audio File**.
 3. Choose a supported video or audio recording.
 4. Live Scribe ignores video images and transcribes the audio track.
 5. Correct the result in **Transcript editor**.
@@ -49,6 +52,29 @@ download.
 One multilingual model handles every listed language mode. Selecting another
 language does not download another model.
 
+
+## Accurate model-download progress
+
+Model download progress now separates three stages:
+
+1. **Downloading** — network data is still being transferred.
+2. **Finalizing** — expected data has arrived, but Hugging Face is still placing,
+   completing, or validating files.
+3. **Ready** — all required local model files have been verified.
+
+The progress bar can reach at most **99%** until the model is actually ready.
+During finalization it switches to an animated bar with a clear
+**Finalizing and verifying** message. A full 100% bar is reserved for the
+verified complete state.
+
+Resumed bytes already present on disk are treated as existing progress rather
+than newly downloaded data. This prevents false speed readings such as
+terabytes per second when Live Scribe starts or resumes a partially downloaded
+model.
+
+Download size and speed use decimal KB, MB, and GB so the progress display
+matches the buyer-facing approximate model size more closely.
+
 ## Buyer-friendly speech quality choices
 
 | Choice | Approximate model download | Typical use |
@@ -62,7 +88,12 @@ The internal Whisper model names remain hidden from normal buyers.
 
 ## PC and portable-drive check
 
-On the first run, Live Scribe checks locally detected:
+On the true first run of a portable copy, Live Scribe displays one automatic
+PC compatibility report. That automatic popup is not shown again after it has
+been acknowledged. Live Scribe may refresh compatibility information silently
+on later launches.
+
+The first-run check reads locally detected:
 
 - system RAM
 - CPU thread count
@@ -82,7 +113,8 @@ unsupported architecture, or insufficient storage. A slow flash drive produces
 a warning rather than an automatic block.
 
 Use **Models → Check This PC Again** after moving the portable folder to another
-computer or drive.
+computer or drive. A visible report appears when the user manually requests that
+recheck.
 
 ## Productivity features
 
@@ -156,12 +188,29 @@ After an interruption, it can restore:
 
 Recovery writes are limited to reduce unnecessary flash-drive activity.
 
-### Long-recording protection
+### Recording folders and long-session protection
 
-Live WAV audio is written into hidden five-minute safety parts. On a normal stop,
-the parts are combined into one WAV and removed. If the application or computer
-is interrupted, closed parts can be recovered instead of risking the whole
-recording.
+Live Scribe creates two clear folders:
+
+```text
+recordings/
+├── In Progress/
+└── Final Output/
+```
+
+During recording, five-minute WAV safety parts are saved under
+**Recordings/In Progress**. When the user clicks **Stop & Save WAV**, Live Scribe
+merges those parts into one complete WAV under **Recordings/Final Output**.
+
+The in-progress parts remain available as an optional safety copy. Keeping both
+the individual parts and the merged WAV uses additional storage and can roughly
+double the audio space used by that session. After confirming that the merged
+WAV plays correctly and recovery is no longer needed, use **Models → Storage
+Manager → Delete Completed Parts**.
+
+**Delete All In-Progress** is also available, but it can permanently remove the
+only recoverable audio for an unfinished session. Final Output WAV files are not
+deleted by either cleanup operation.
 
 ### Storage manager
 
@@ -171,9 +220,11 @@ The Models page includes **Storage Manager** for:
 - removing an unused model
 - cleaning stopped model downloads
 - cleaning temporary files
-- checking recording storage usage
+- viewing In Progress and Final Output audio separately
+- deleting completed in-progress parts after checking the merged WAV
+- deleting all in-progress parts with a strong recovery warning
 
-Recordings are never deleted automatically.
+Final Output WAV files are never deleted automatically.
 
 ## Topic Profiles
 
@@ -208,6 +259,14 @@ Vocabulary Manager can add, edit, and remove:
 - pronunciation aliases
 
 The original recording remains the final reference for important details.
+
+
+Everything entered in Vocabulary Manager remains in the local portable app
+folder on the PC or USB drive. Live Scribe does not upload vocabulary,
+pronunciation entries, topic profiles, saved sessions, recordings, or exports.
+After the selected speech model has been downloaded, transcription can operate
+offline.
+
 
 ## Export formats
 
@@ -308,7 +367,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-62 passed
+70 passed
 ```
 
 A real release still requires physical testing of:

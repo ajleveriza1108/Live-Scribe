@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 repository_url="https://github.com/ajleveriza1108/Live-Scribe.git"
-commit_message="Add live productivity and recorded-media transcription"
+commit_message="Fix model download progress and finalization"
 
 if ! command -v git >/dev/null 2>&1; then
   echo "Git is not installed. Install Git, then run this script again."

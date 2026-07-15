@@ -114,10 +114,8 @@ class _ModernBaseApp(_Controller):
     def __init__(self) -> None:
         ensure_app_directories()
         self.settings = AppSettings.load()
-        self.first_run_hardware_notice = (
-            not self.settings.hardware_check_completed
-            or self.settings.hardware_check_version < HARDWARE_CHECK_VERSION
-        )
+        # Automatic PC report appears only on the true first run.
+        self.first_run_hardware_notice = not self.settings.hardware_check_completed
         self.hardware_assessment = assess_this_pc(
             run_storage_test=self.first_run_hardware_notice
         )
@@ -312,7 +310,7 @@ class _ModernBaseApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.7.0",
+            text="Version 0.7.2",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=10, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -662,7 +660,7 @@ class _ModernBaseApp(_Controller):
         self._page_header(
             header,
             "Vocabulary Manager",
-            "Add, edit, or remove difficult names, places, acronyms, and technical terms.",
+            "Add, edit, or remove local vocabulary without uploading your information.",
         )
 
         card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
@@ -677,7 +675,9 @@ class _ModernBaseApp(_Controller):
             card,
             text=(
                 "Add a correct spelling and the ways a term may sound. Select a saved entry to edit or remove it. "
-                "Entries become local recognition hints and controlled final-pass corrections. The original WAV remains the evidence."
+                "Everything added here is stored only in this portable Live Scribe folder on your PC or USB drive. "
+                "Live Scribe does not upload your vocabulary, topics, sessions, recordings, or exports. "
+                "The original recording remains the evidence."
             ),
             wraplength=760,
             justify="left",
@@ -1707,8 +1707,15 @@ class _ModernBaseApp(_Controller):
     def _apply_download_progress(self, progress: ModelDownloadProgress) -> None:
         if not self.model_downloading and progress.phase != "complete":
             return
+
+        friendly = model_friendly_name(progress.model_name)
         percent = progress.percent
-        if percent is None:
+
+        if progress.phase in {"preparing", "finalizing"}:
+            self.download_progress_bar.stop()
+            self.download_progress_bar.configure(mode="indeterminate")
+            self.download_progress_bar.start()
+        elif percent is None:
             if str(self.download_progress_bar.cget("mode")) != "indeterminate":
                 self.download_progress_bar.configure(mode="indeterminate")
                 self.download_progress_bar.start()
@@ -1717,11 +1724,34 @@ class _ModernBaseApp(_Controller):
             self.download_progress_bar.configure(mode="determinate")
             self.download_progress_value.set(percent / 100.0)
 
-        friendly = model_friendly_name(progress.model_name)
         if progress.phase == "preparing":
+            self.download_progress_title.configure(text=f"Preparing {friendly}")
             self.status_var.set("Preparing download")
-            self.download_progress_text_var.set(progress.message or "Checking model files and size…")
+            self.download_progress_text_var.set(
+                progress.message or "Checking model files and size…"
+            )
             return
+
+        if progress.phase == "finalizing":
+            self.download_progress_title.configure(text=f"Finalizing {friendly}")
+            self.status_var.set("Finalizing model")
+            self.download_progress_text_var.set(
+                progress.message
+                or (
+                    "The model data has been received. Live Scribe is finishing "
+                    "remaining files and verifying offline readiness. Do not close "
+                    "the app yet."
+                )
+            )
+            return
+
+        if progress.phase == "complete":
+            self.download_progress_title.configure(text=f"{friendly} is ready")
+            self.download_progress_bar.stop()
+            self.download_progress_bar.configure(mode="determinate")
+            self.download_progress_value.set(1.0)
+        else:
+            self.download_progress_title.configure(text=f"Downloading {friendly}")
 
         details: list[str] = []
         downloaded = self._format_download_bytes(progress.downloaded_bytes)
@@ -1736,10 +1766,23 @@ class _ModernBaseApp(_Controller):
         if progress.speed_bytes_per_second > 0:
             details.append(f"{self._format_download_bytes(progress.speed_bytes_per_second)}/s")
         eta = self._format_download_eta(progress.eta_seconds)
-        if eta:
+        if (
+            eta
+            and progress.phase == "downloading"
+            and (percent is None or percent < 99.0)
+        ):
             details.append(eta)
-        self.download_progress_text_var.set(f"{friendly}: " + "  •  ".join(details))
-        self.status_var.set("Downloading" if percent is None else f"Downloading {percent:.0f}%")
+        if progress.phase == "complete":
+            details.append("ready for offline use")
+        self.download_progress_text_var.set(
+            f"{friendly}: " + "  •  ".join(details)
+        )
+        if progress.phase == "complete":
+            self.status_var.set("Model ready")
+        else:
+            self.status_var.set(
+                "Downloading" if percent is None else f"Downloading {percent:.0f}%"
+            )
 
     def _model_download_cancelled(self, model_name: str) -> None:
         self.model_downloading = False

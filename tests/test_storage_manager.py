@@ -7,5 +7,6 @@ def test_storage_manager_has_models_and_user_storage_rows() -> None:
     assert "model:small" in keys
     assert "partial" in keys
     assert "temp" in keys
-    assert "recordings" in keys
+    assert "recordings-in-progress" in keys
+    assert "recordings-final" in keys
     assert format_size(1024) == "1.00 KB"

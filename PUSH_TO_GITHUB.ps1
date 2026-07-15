@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Add live productivity and recorded-media transcription"
+$CommitMessage = "Fix model download progress and finalization"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)
