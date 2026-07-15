@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.7.2**
+**Version 0.7.4**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -12,6 +12,23 @@ Live Scribe is a portable, offline transcription application for:
 The app uses one locally downloaded Faster-Whisper speech model. The productivity
 features in this release do **not** require another LLM or another large AI
 download.
+
+
+## Recorded-file button availability
+
+**Choose Video or Audio File** is now enabled whenever Live Scribe is idle.
+
+A downloaded speech quality is still required to perform transcription, but the
+main file-selection action is no longer silently disabled. When no ready speech
+quality is available, clicking the button explains the requirement and offers
+to open the Models page.
+
+The button is temporarily disabled only while Live Scribe is:
+
+- listening or recording live audio
+- loading a speech model
+- downloading a speech model
+- transcribing or verifying another recording
 
 ## Main workflow
 
@@ -52,6 +69,45 @@ the panel labeled **Already have a recorded video or audio file?**
 One multilingual model handles every listed language mode. Selecting another
 language does not download another model.
 
+
+
+## First-run report persistence
+
+The automatic PC compatibility report is now protected by two local signals:
+
+```text
+data/.first-run-complete
+data/hardware_profile.json
+```
+
+The app also retains `hardware_check_completed` in `data/settings.json`.
+
+On a fresh portable copy, the compatibility report is shown once. Live Scribe
+writes the completion state immediately after the first hardware assessment and
+before the rest of the interface is initialized. Later launches do not replay
+the popup, even if settings are partially reset or an older version previously
+created only the hardware report.
+
+**Check This PC Again** remains available on the Models page and displays a
+report only when the user requests it.
+
+## Clean Stop Download behavior
+
+Live Scribe now disables Hugging Face Xet for model downloads and uses the
+standard resumable Hub transfer path. This avoids an hf-xet worker callback
+printing a Python traceback when **Stop Download** is pressed.
+
+Stopping a model download now follows this buyer-facing flow:
+
+1. Stop is requested.
+2. The standard transfer exits through Live Scribe's handled cancellation.
+3. The progress card closes normally.
+4. Partial files remain in the portable model folder.
+5. Clicking Download Selected Quality later resumes those files.
+
+This change does not add another dependency or model. It may use the standard
+HTTP download route instead of Xet's accelerated route so cancellation remains
+clean and predictable.
 
 ## Accurate model-download progress
 
@@ -367,7 +423,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-70 passed
+78 passed
 ```
 
 A real release still requires physical testing of:

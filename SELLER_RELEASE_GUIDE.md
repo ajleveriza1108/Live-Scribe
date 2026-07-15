@@ -108,3 +108,23 @@ Before publishing:
 - Confirm the card changes to Finalizing with an animated bar.
 - Confirm 100% appears only immediately before the verified ready state.
 
+## v0.7.3 release checks
+
+- Launch a fresh copy and confirm the PC report appears once.
+- Close and relaunch; confirm it does not return.
+- Confirm `data/.first-run-complete` exists.
+- Confirm an older copy with `hardware_profile.json` but settings set to false
+  does not replay the popup.
+- Start a model download, press Stop Download, and confirm no traceback appears
+  in the launcher.
+- Relaunch and confirm the same model resumes from partial files.
+
+## v0.7.4 recorded-file button check
+
+- Start a fresh copy with no downloaded model.
+- Confirm Choose Video or Audio File is clickable.
+- Click it and confirm the message offers to open Models.
+- Download/select a model and confirm the file chooser opens.
+- Confirm both recorded-file buttons are disabled only during an active
+  download, model load, live session, or transcription.
+

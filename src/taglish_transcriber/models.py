@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import os
 import re
 import shutil
 import threading
@@ -347,12 +348,27 @@ def _make_tqdm_class(tracker: _ProgressTracker):
     return CallbackTqdm
 
 
+def _configure_clean_hub_cancellation() -> None:
+    """Disable Xet so Stop Download is handled by the normal Python transfer path."""
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
+    try:
+        from huggingface_hub import constants as hub_constants
+
+        # huggingface_hub reads the environment variable when constants is
+        # imported. Update the in-memory value as well in case another package
+        # imported it before Live Scribe configured the portable environment.
+        hub_constants.HF_HUB_DISABLE_XET = True
+    except Exception:
+        pass
+
+
 def download_model_once(
     model_name: str,
     progress_callback: Callable[[ModelDownloadProgress], None] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> Path:
     """Download one selected model, preserving partial files when stopped."""
+    _configure_clean_hub_cancellation()
     _raise_if_download_cancelled(cancel_event)
     model_name = _validate_model_name(model_name)
     ensure_app_directories()
@@ -513,7 +529,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.7.2", encoding="utf-8")
+    (target / ".download-complete").write_text("0.7.4", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",

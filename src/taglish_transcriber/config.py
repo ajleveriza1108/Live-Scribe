@@ -5,7 +5,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .paths import SETTINGS_FILE, atomic_write_text, ensure_app_directories
+from .paths import (
+    FIRST_RUN_MARKER_FILE,
+    HARDWARE_PROFILE_FILE,
+    SETTINGS_FILE,
+    atomic_write_text,
+    ensure_app_directories,
+)
 
 
 MODEL_PLACEHOLDER = "Choose speech quality…"
@@ -181,6 +187,20 @@ THEME_OPTIONS = (THEME_OLED, THEME_LIGHT)
 DEFAULT_TOPIC_PROFILE_ID = "general-conversation"
 
 
+def first_run_has_completed() -> bool:
+    """Return True when this portable copy has already shown its first-run report."""
+    return FIRST_RUN_MARKER_FILE.is_file() or HARDWARE_PROFILE_FILE.is_file()
+
+
+def mark_first_run_completed() -> None:
+    """Persist first-run completion independently from editable settings."""
+    ensure_app_directories()
+    atomic_write_text(
+        FIRST_RUN_MARKER_FILE,
+        "Live Scribe first-run PC report completed.\n",
+    )
+
+
 @dataclass(slots=True)
 class AppSettings:
     model_name: str = ""
@@ -203,12 +223,18 @@ class AppSettings:
     def load(cls, path: Path = SETTINGS_FILE) -> "AppSettings":
         ensure_app_directories()
         if not path.exists():
-            return cls()
+            settings = cls()
+            if first_run_has_completed():
+                settings.hardware_check_completed = True
+            return settings
 
         try:
             raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return cls()
+            settings = cls()
+            if first_run_has_completed():
+                settings.hardware_check_completed = True
+            return settings
 
         allowed = {field_name for field_name in cls.__dataclass_fields__}
         safe = {key: value for key, value in raw.items() if key in allowed}
@@ -222,7 +248,10 @@ class AppSettings:
         try:
             settings = cls(**safe)
         except TypeError:
-            return cls()
+            settings = cls()
+            if first_run_has_completed():
+                settings.hardware_check_completed = True
+            return settings
 
         if settings.model_name not in MODEL_OPTIONS:
             settings.model_name = ""
@@ -242,6 +271,16 @@ class AppSettings:
             settings.hardware_check_completed = False
         if not isinstance(settings.hardware_check_version, int):
             settings.hardware_check_version = 0
+
+        # The independent marker is the source of truth. The hardware report is
+        # accepted as a migration signal for users who ran v0.7.2 or earlier.
+        if first_run_has_completed():
+            settings.hardware_check_completed = True
+            if not FIRST_RUN_MARKER_FILE.is_file():
+                try:
+                    mark_first_run_completed()
+                except OSError:
+                    pass
         return settings
 
     def save(self, path: Path = SETTINGS_FILE) -> None:
@@ -250,3 +289,5 @@ class AppSettings:
             path,
             json.dumps(asdict(self), indent=2, ensure_ascii=False) + "\n",
         )
+        if self.hardware_check_completed:
+            mark_first_run_completed()

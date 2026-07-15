@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.7.2 — BUYER GUIDE
+LIVE SCRIBE v0.7.4 — BUYER GUIDE
 
 WHAT LIVE SCRIBE DOES
 ---------------------
@@ -11,6 +11,16 @@ profiles, floating captions, transcript editing, speaker labels, markers,
 session search, or storage cleanup.
 
 
+
+STOPPING A MODEL DOWNLOAD
+-------------------------
+Stop Download safely keeps partial model files for resume. Live Scribe uses the
+standard resumable Hugging Face transfer path so stopping does not produce an
+hf-xet traceback in the launcher window.
+
+Wait until the progress card closes before exiting the app or removing a USB
+drive. Select the same speech quality later and download again to resume.
+
 MODEL DOWNLOAD PROGRESS
 -----------------------
 The download has separate Downloading, Finalizing, and Ready stages.
@@ -22,6 +32,15 @@ the progress card closes.
 
 A resumed download may begin at a high percentage because partial files were
 kept. Existing bytes are not counted as new download speed.
+
+
+FIRST-RUN REPORT
+----------------
+The automatic PC compatibility report appears once for each portable copy.
+Live Scribe saves a permanent local first-run marker before the rest of the
+interface opens. The popup will not return automatically on later launches.
+
+Use Models > Check This PC Again only when a new visible report is needed.
 
 FIRST USE
 ---------
@@ -41,6 +60,15 @@ LIVE SESSION
 5. Use Pause and Resume when needed.
 6. Click Stop & Save WAV.
 7. Click Verify from WAV for the separate full-recording pass.
+
+
+CHOOSE VIDEO OR AUDIO FILE
+--------------------------
+This button remains clickable whenever Live Scribe is idle.
+
+When no downloaded speech quality is ready, the button explains what is
+required and offers to open Models. It is disabled only during another active
+download, model load, live session, or transcription operation.
 
 RECORDED VIDEO OR AUDIO
 -----------------------

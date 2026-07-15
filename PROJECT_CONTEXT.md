@@ -182,3 +182,28 @@ as newly transferred bytes. Unrealistic filesystem rename/copy spikes above
 10 GB/s are ignored by the speed smoother. Download units use decimal KB/MB/GB
 to align with buyer-facing model-size labels.
 
+## v0.7.3 first-run persistence and clean download cancellation
+
+First-run completion is redundant across `data/.first-run-complete`,
+`data/hardware_profile.json`, and the `hardware_check_completed` settings field.
+An existing hardware report migrates automatically to the permanent marker.
+The state is committed immediately after the initial assessment, before the
+remaining GUI initialization.
+
+Model downloads force `HF_HUB_DISABLE_XET=1` in launchers, runtime hooks,
+portable environment setup, and immediately before Hugging Face download
+imports. The in-memory huggingface_hub constant is also updated when the package
+was imported earlier. Stop Download therefore raises the handled cancellation
+through the standard Python transfer path instead of an hf-xet worker callback.
+
+## v0.7.4 recorded-file action availability
+
+The primary Choose Video or Audio File button and the action-bar
+Transcribe Video / Audio button remain enabled whenever the app is idle. Model
+readiness is validated after the click rather than being represented as a
+silent disabled control. When no selected downloaded model is available, the
+app explains the requirement and offers to navigate to Models.
+
+Both controls remain disabled during model loading/downloading, live capture,
+recorded-file transcription, and verification.
+

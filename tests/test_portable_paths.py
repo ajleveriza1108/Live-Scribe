@@ -38,3 +38,8 @@ def test_atomic_write_replaces_complete_file(tmp_path: Path) -> None:
     atomic_write_text(target, '{"version": 2}\n')
     assert target.read_text(encoding="utf-8") == '{"version": 2}\n'
     assert not target.with_suffix(".json.tmp").exists()
+
+
+
+def test_xet_is_disabled_for_resumable_clean_cancellation() -> None:
+    assert os.environ["HF_HUB_DISABLE_XET"] == "1"

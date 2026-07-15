@@ -442,17 +442,24 @@ class ProductivityFeaturesMixin:
             self.pause_button.configure(state="disabled", text="Pause")
         if hasattr(self, "session_title_entry"):
             self.session_title_entry.configure(state="normal")
-        if hasattr(self, "import_media_button"):
-            model_name = self._selected_model_name()
-            allowed = bool(
-                model_name
-                and is_model_downloaded(model_name)
-                and not (self.model_loading or self.model_downloading or self.finalizing)
+
+        # Choosing a recorded file is a primary entry point, so it remains
+        # clickable whenever Live Scribe is idle. The click handler explains
+        # which speech-quality step is missing and can open Models when needed.
+        recorded_file_state = (
+            "disabled"
+            if (
+                self.session is not None
+                or self.model_loading
+                or self.model_downloading
+                or self.finalizing
             )
-            state = "normal" if allowed else "disabled"
-            self.import_media_button.configure(state=state)
-            if hasattr(self, "import_media_primary_button"):
-                self.import_media_primary_button.configure(state=state)
+            else "normal"
+        )
+        if hasattr(self, "import_media_button"):
+            self.import_media_button.configure(state=recorded_file_state)
+        if hasattr(self, "import_media_primary_button"):
+            self.import_media_primary_button.configure(state=recorded_file_state)
         if hasattr(self, "verify_wav_button") and self.document.recording_path:
             if self.document.source_type == "imported":
                 self.verify_wav_button.configure(
@@ -656,10 +663,25 @@ class ProductivityFeaturesMixin:
             return
         model_name = self._selected_model_name()
         if not model_name or not is_model_downloaded(model_name):
-            messagebox.showinfo(
-                "Speech quality required",
-                "Download and select a speech quality before transcribing a recorded file.",
+            selected_text = (
+                "The selected speech quality has not finished downloading."
+                if model_name
+                else "No speech quality is currently selected."
             )
+            open_models = messagebox.askokcancel(
+                "Speech quality required",
+                f"{selected_text}\n\n"
+                "A downloaded speech quality is required before Live Scribe can "
+                "transcribe a recorded video or audio file.\n\n"
+                "Open the Models page now?",
+                parent=self.root,
+            )
+            if open_models:
+                self._show_page("Models")
+                self.activity_var.set(
+                    "Choose and download a speech quality. Then return to Live "
+                    "Session and choose the recorded video or audio file."
+                )
             return
 
         filename = filedialog.askopenfilename(

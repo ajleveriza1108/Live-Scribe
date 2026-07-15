@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Fix model download progress and finalization"
+$CommitMessage = "Enable recorded-file selection while idle"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)

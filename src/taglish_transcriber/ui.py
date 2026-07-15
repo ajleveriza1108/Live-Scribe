@@ -24,6 +24,7 @@ from .config import (
     AUDIO_SOURCE_OPTIONS,
     AUDIO_SOURCE_SYSTEM,
     AppSettings,
+    mark_first_run_completed,
     LANGUAGE_LABEL_TO_CODE,
     MODEL_OPTIONS,
     MODEL_PLACEHOLDER,
@@ -120,6 +121,15 @@ class _ModernBaseApp(_Controller):
             run_storage_test=self.first_run_hardware_notice
         )
         save_hardware_assessment(self.hardware_assessment)
+
+        # Commit the first-run state before building the rest of the interface.
+        # This makes the report strictly once-per-portable-copy even if a later
+        # operation is interrupted or the app is closed from the task manager.
+        if self.first_run_hardware_notice:
+            self.settings.hardware_check_completed = True
+            self.settings.hardware_check_version = HARDWARE_CHECK_VERSION
+            self.settings.save()
+            mark_first_run_completed()
 
         selected_hardware_model = self.settings.model_name
         if (
@@ -310,7 +320,7 @@ class _ModernBaseApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.7.2",
+            text="Version 0.7.4",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=10, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -1488,10 +1498,9 @@ class _ModernBaseApp(_Controller):
                 self.settings.save()
 
     def _show_first_run_hardware_notice(self) -> None:
+        # Persistence was completed during startup. This method only displays
+        # the one-time buyer report.
         self.first_run_hardware_notice = False
-        self.settings.hardware_check_completed = True
-        self.settings.hardware_check_version = HARDWARE_CHECK_VERSION
-        self.settings.save()
         self._show_page("Models")
         messagebox.showinfo(
             "PC check complete",

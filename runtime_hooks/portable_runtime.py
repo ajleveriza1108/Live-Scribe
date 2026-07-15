@@ -67,6 +67,7 @@ def _configure_portable_runtime() -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
 
 
 _configure_portable_runtime()

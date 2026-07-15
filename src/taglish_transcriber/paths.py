@@ -59,6 +59,7 @@ PYCACHE_DIR = CACHE_DIR / "pycache"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 TOPIC_PROFILES_FILE = DATA_DIR / "topic_profiles.json"
 HARDWARE_PROFILE_FILE = DATA_DIR / "hardware_profile.json"
+FIRST_RUN_MARKER_FILE = DATA_DIR / ".first-run-complete"
 SESSION_DATABASE_FILE = DATA_DIR / "sessions.sqlite3"
 RECOVERY_FILE = DATA_DIR / "unfinished_session.json"
 
@@ -82,6 +83,10 @@ def configure_portable_environment() -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    # Use the standard resumable Hub transfer path. Raising a cancellation
+    # request from hf-xet progress callbacks can escape from its worker and
+    # print a traceback even though Live Scribe handles the stop correctly.
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
 
 
 configure_portable_environment()
