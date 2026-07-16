@@ -20,6 +20,7 @@ from .audio import (
     system_audio_setup_help,
 )
 from .config import (
+    AUDIO_SOURCE_APPLICATION,
     AUDIO_SOURCE_MICROPHONE,
     AUDIO_SOURCE_OPTIONS,
     AUDIO_SOURCE_SYSTEM,
@@ -175,6 +176,12 @@ class _ModernBaseApp(_Controller):
         )
         self.language_var = tk.StringVar(value=self.settings.language_label)
         self.microphone_var = tk.StringVar(value=self.settings.microphone_label)
+        self.application_audio_var = tk.StringVar(
+            value=self.settings.application_audio_label
+        )
+        self.application_audio_enabled_var = tk.BooleanVar(
+            value=self.settings.application_audio_enabled
+        )
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
         self.timestamps_var = tk.BooleanVar(value=self.settings.include_timestamps)
@@ -258,7 +265,7 @@ class _ModernBaseApp(_Controller):
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
         self.sidebar.grid_columnconfigure(0, weight=1)
-        self.sidebar.grid_rowconfigure(8, weight=1)
+        self.sidebar.grid_rowconfigure(9, weight=1)
 
         ctk.CTkLabel(
             self.sidebar,
@@ -275,6 +282,7 @@ class _ModernBaseApp(_Controller):
 
         nav_items = (
             ("Live Session", "●"),
+            ("Interview Mode", "◆"),
             ("Vocabulary", "Aa"),
             ("Topics", "◎"),
             ("Sessions", "▤"),
@@ -298,7 +306,7 @@ class _ModernBaseApp(_Controller):
             self.nav_buttons[name] = button
 
         theme_holder = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        theme_holder.grid(row=9, column=0, sticky="sew", padx=16, pady=(12, 10))
+        theme_holder.grid(row=10, column=0, sticky="sew", padx=16, pady=(12, 10))
         theme_holder.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             theme_holder,
@@ -323,10 +331,10 @@ class _ModernBaseApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.7.5",
+            text="Version 0.8.1",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
-        ).grid(row=10, column=0, sticky="w", padx=22, pady=(0, 18))
+        ).grid(row=11, column=0, sticky="w", padx=22, pady=(0, 18))
 
         self.main_shell = ctk.CTkFrame(
             self.root,
@@ -442,39 +450,53 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=14, weight="bold"),
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(14, 10))
-        self.audio_source_combo = ctk.CTkComboBox(
+        app_audio_ready, _app_audio_reason = application_audio_support()
+        source_disabled = (
+            [] if app_audio_ready else [AUDIO_SOURCE_APPLICATION]
+        )
+        self.audio_source_combo = WholeClickableDropdown(
             input_card,
             variable=self.audio_source_var,
             values=list(AUDIO_SOURCE_OPTIONS),
+            disabled_values=source_disabled,
             command=self._on_audio_source_selected,
             state="readonly",
             height=38,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["surface_raised"],
             border_color=COLORS["border"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
+            border_width=1,
             text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
         )
-        self.audio_source_combo.grid(row=1, column=0, sticky="ew", padx=(16, 8), pady=(0, 16))
-        self.microphone_combo = ctk.CTkComboBox(
+        self.audio_source_combo.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=(16, 8),
+            pady=(0, 16),
+        )
+        self.microphone_combo = WholeClickableDropdown(
             input_card,
             variable=self.microphone_var,
             values=["Default input"],
+            command=self._on_audio_input_selected,
             state="readonly",
             height=38,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["surface_raised"],
             border_color=COLORS["border"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
+            border_width=1,
             text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
         )
-        self.microphone_combo.grid(row=1, column=1, sticky="ew", padx=8, pady=(0, 16))
+        self.microphone_combo.grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=8,
+            pady=(0, 16),
+        )
         self.detect_button = ctk.CTkButton(
             input_card,
             text="Detect",
@@ -1649,6 +1671,12 @@ class _ModernBaseApp(_Controller):
             switch.configure(state=switch_state)
         enabled = "normal" if state == "readonly" else "disabled"
         self.detect_button.configure(state=enabled)
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(state=enabled)
+        if hasattr(self, "application_refresh_button"):
+            self.application_refresh_button.configure(state=enabled)
+        if hasattr(self, "application_audio_switch"):
+            self.application_audio_switch.configure(state=enabled)
         self.manage_topics_button.configure(state=enabled)
         if hasattr(self, "recheck_pc_button"):
             self.recheck_pc_button.configure(state=enabled)
@@ -1928,9 +1956,12 @@ class _ModernBaseApp(_Controller):
 
 
 from .productivity_features import ProductivityFeaturesMixin
+from .interview_ui import InterviewModeMixin
+from .application_audio import application_audio_support
+from .ui_widgets import WholeClickableDropdown
 
 
-class TaglishTranscriberApp(ProductivityFeaturesMixin, _ModernBaseApp):
+class TaglishTranscriberApp(InterviewModeMixin, ProductivityFeaturesMixin, _ModernBaseApp):
     """Live Scribe modern GUI with lightweight productivity and recovery tools."""
 
     pass

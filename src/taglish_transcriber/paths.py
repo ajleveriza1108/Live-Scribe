@@ -62,6 +62,8 @@ HARDWARE_PROFILE_FILE = DATA_DIR / "hardware_profile.json"
 FIRST_RUN_MARKER_FILE = DATA_DIR / ".first-run-complete"
 SESSION_DATABASE_FILE = DATA_DIR / "sessions.sqlite3"
 RECOVERY_FILE = DATA_DIR / "unfinished_session.json"
+INTERVIEW_PROFILES_FILE = DATA_DIR / "interview_profiles.json"
+INTERVIEW_MODELS_DIR = MODEL_DIR / "interview"
 
 def configure_portable_environment() -> None:
     """Keep writable runtime state beside the portable application."""
@@ -97,6 +99,7 @@ def ensure_app_directories() -> None:
         for directory in (
             DATA_DIR,
             MODEL_DIR,
+            INTERVIEW_MODELS_DIR,
             EXPORT_DIR,
             RECORDING_DIR,
             RECORDING_IN_PROGRESS_DIR,

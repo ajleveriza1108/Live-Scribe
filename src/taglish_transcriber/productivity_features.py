@@ -11,9 +11,10 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import customtkinter as ctk
 
-from .audio import recover_rolling_recording
+from .audio import AudioInputMonitor, recover_rolling_recording
 from .caption_window import FloatingCaptionWindow
 from .config import (
+    AUDIO_SOURCE_APPLICATION,
     AUDIO_SOURCE_SYSTEM,
     GRAMMAR_REVIEW_LANGUAGE_LABELS,
     LANGUAGE_LABEL_TO_CODE,
@@ -41,6 +42,8 @@ from .storage_manager import (
     storage_items,
 )
 from .transcript import TranscriptDocument, TranscriptEntry, format_clock
+from .transcript_summary import summarize_entries
+from .ui_widgets import WholeClickableDropdown
 
 
 class ProductivityFeaturesMixin:
@@ -57,6 +60,7 @@ class ProductivityFeaturesMixin:
         self.audio_level_var: tk.DoubleVar | None = None
         self.audio_level_text_var: tk.StringVar | None = None
         self.storage_window = None
+        self.input_monitor: AudioInputMonitor | None = None
         super().__init__()
 
         self.caption_window = FloatingCaptionWindow(
@@ -84,7 +88,7 @@ class ProductivityFeaturesMixin:
             text="Session title",
             text_color=self._color("text_secondary"),
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
-        ).grid(row=5, column=0, sticky="w", padx=16, pady=(0, 6))
+        ).grid(row=7, column=0, sticky="w", padx=16, pady=(0, 6))
         self.session_title_entry = ctk.CTkEntry(
             self.input_card,
             textvariable=self.session_title_var,
@@ -96,7 +100,7 @@ class ProductivityFeaturesMixin:
             placeholder_text="Example: Weekly Sales Meeting",
         )
         self.session_title_entry.grid(
-            row=6,
+            row=8,
             column=0,
             columnspan=3,
             sticky="ew",
@@ -105,15 +109,156 @@ class ProductivityFeaturesMixin:
         )
 
         recorded_file_panel = ctk.CTkFrame(self.input_card, corner_radius=10, fg_color=self._color("surface_raised"), border_color=self._color("border"), border_width=1)
-        recorded_file_panel.grid(row=7, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 14))
+        recorded_file_panel.grid(row=9, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 14))
         recorded_file_panel.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(recorded_file_panel, text="Already have a recorded video or audio file?", text_color=self._color("text"), font=ctk.CTkFont(family=self.font_family, size=13, weight="bold")).grid(row=0,column=0,sticky="w",padx=14,pady=(12,3))
         ctk.CTkLabel(recorded_file_panel, text="Choose an MP4, MKV, MP3, WAV, or another supported recording. Live Scribe reads its audio track and keeps the original file unchanged.", text_color=self._color("text_secondary"), justify="left", anchor="w", wraplength=700, font=ctk.CTkFont(family=self.font_family,size=11)).grid(row=1,column=0,sticky="ew",padx=14,pady=(0,12))
         self.import_media_primary_button = ctk.CTkButton(recorded_file_panel, text="Choose Video or Audio File", command=self._transcribe_file_requested, width=200, height=38, corner_radius=8, fg_color=self._color("success"), hover_color=self._color("success"), text_color="#FFFFFF")
         self.import_media_primary_button.grid(row=0,column=1,rowspan=2,sticky="e",padx=14,pady=12)
 
-        self.audio_level_var = tk.DoubleVar(value=0.0)
-        self.audio_level_text_var = tk.StringVar(value="Waiting for audio")
+        if self.audio_level_var is None:
+            self.audio_level_var = tk.DoubleVar(value=0.0)
+        if self.audio_level_text_var is None:
+            self.audio_level_text_var = tk.StringVar(value="Waiting for audio")
+
+        input_test_panel = ctk.CTkFrame(
+            self.input_card,
+            corner_radius=9,
+            fg_color=self._color("surface_raised"),
+            border_color=self._color("border"),
+            border_width=1,
+        )
+        input_test_panel.grid(
+            row=5,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+            padx=16,
+            pady=(0, 10),
+        )
+        input_test_panel.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            input_test_panel,
+            text="Live input check",
+            text_color=self._color("text"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=12,
+                weight="bold",
+            ),
+        ).grid(row=0, column=0, padx=(12, 8), pady=12)
+        self.input_test_bar = ctk.CTkProgressBar(
+            input_test_panel,
+            variable=self.audio_level_var,
+            height=12,
+            corner_radius=6,
+            progress_color=self._color("success"),
+            fg_color=self._color("surface_alt"),
+        )
+        self.input_test_bar.grid(row=0, column=1, sticky="ew", padx=8, pady=12)
+        ctk.CTkLabel(
+            input_test_panel,
+            textvariable=self.audio_level_text_var,
+            width=150,
+            anchor="w",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=0, column=2, padx=8, pady=12)
+        self.input_test_button = ctk.CTkButton(
+            input_test_panel,
+            text="Test Input",
+            command=self._toggle_input_test,
+            width=100,
+            height=34,
+            fg_color=self._color("surface_alt"),
+            hover_color=self._color("border"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.input_test_button.grid(row=0, column=3, padx=(8, 12), pady=12)
+
+        self.application_audio_frame = ctk.CTkFrame(
+            self.input_card,
+            corner_radius=9,
+            fg_color=self._color("surface_raised"),
+            border_color=self._color("border"),
+            border_width=1,
+        )
+        self.application_audio_frame.grid(
+            row=6,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+            padx=16,
+            pady=(0, 10),
+        )
+        self.application_audio_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            self.application_audio_frame,
+            text="Application to transcribe",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=11,
+                weight="bold",
+            ),
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+        self.application_audio_dropdown = WholeClickableDropdown(
+            self.application_audio_frame,
+            variable=self.application_audio_var,
+            values=["No running application detected"],
+            disabled_values=["No running application detected"],
+            command=self._on_audio_input_selected,
+            state="readonly",
+            height=36,
+            corner_radius=8,
+            fg_color=self._color("surface_alt"),
+            hover_color=self._color("border"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.application_audio_dropdown.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=12,
+            pady=(0, 10),
+        )
+        self.application_audio_switch = ctk.CTkSwitch(
+            self.application_audio_frame,
+            text="Listen to this app",
+            variable=self.application_audio_enabled_var,
+            command=self._on_application_audio_toggle,
+            progress_color=self._color("success"),
+            text_color=self._color("text"),
+        )
+        self.application_audio_switch.grid(
+            row=1,
+            column=1,
+            padx=10,
+            pady=(0, 10),
+        )
+        self.application_refresh_button = ctk.CTkButton(
+            self.application_audio_frame,
+            text="Refresh Apps",
+            command=lambda: self._refresh_audio_inputs(auto_select=False),
+            width=104,
+            height=36,
+            fg_color=self._color("surface_alt"),
+            hover_color=self._color("border"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.application_refresh_button.grid(
+            row=1,
+            column=2,
+            padx=(0, 12),
+            pady=(0, 10),
+        )
+        self.application_audio_frame.grid_remove()
         ctk.CTkLabel(
             self.status_row,
             text="Input",
@@ -183,8 +328,120 @@ class ProductivityFeaturesMixin:
         self.clear_button.grid_configure(row=1, column=1, pady=(5, 10))
         self.export_button.grid_configure(row=1, column=2, pady=(5, 10))
         self.recording_folder_button.grid_configure(row=1, column=3, pady=(5, 10))
+        self.summary_button = ctk.CTkButton(
+            self.action_bar,
+            text="Summarize & Format",
+            command=self._summarize_and_format,
+            height=38,
+            corner_radius=9,
+            fg_color="transparent",
+            hover_color=self._color("surface_raised"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.summary_button.grid(row=1, column=4, padx=6, pady=(5, 10))
 
         self._build_transcript_editor()
+        self._build_summary_tab()
+        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+            self.application_audio_frame.grid()
+        else:
+            self.application_audio_frame.grid_remove()
+
+    def _build_summary_tab(self) -> None:
+        summary = self.notebook.add("Summary & format")
+        summary.grid_rowconfigure(0, weight=1)
+        summary.grid_columnconfigure(0, weight=1)
+        self.summary_text = tk.Text(
+            summary,
+            wrap="word",
+            font=(self.font_family, 11),
+            padx=14,
+            pady=14,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self.summary_text.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        self.summary_text.configure(state="disabled")
+        self.text_widgets.append(self.summary_text)
+
+    def _summarize_and_format(self) -> None:
+        entries = list(self.document.entries)
+        if not entries:
+            messagebox.showinfo(
+                "Nothing to summarize",
+                "Start a transcription or open a saved session first.",
+                parent=self.root,
+            )
+            return
+        result = summarize_entries(entries)
+        self.summary_text.configure(state="normal")
+        self.summary_text.delete("1.0", "end")
+        self.summary_text.insert("1.0", result.render())
+        self.summary_text.configure(state="disabled")
+        try:
+            self.notebook.set("Summary & format")
+        except Exception:
+            pass
+        self.activity_var.set(
+            "Created an offline quick summary and formatted transcript. "
+            "The raw transcript was not changed."
+        )
+
+    def _toggle_input_test(self) -> None:
+        if self.input_monitor is not None:
+            self._stop_input_test()
+            return
+        if self.session is not None or self.model_loading or self.model_downloading or self.finalizing:
+            return
+        try:
+            self.input_monitor = AudioInputMonitor(
+                source_mode=self.audio_source_var.get(),
+                input_label=self.microphone_var.get(),
+                microphone_index=(
+                    self._microphone_index_for_test()
+                ),
+                application_enabled=self.application_audio_enabled_var.get(),
+                event_callback=self._threadsafe_input_test_level,
+            )
+            self.input_monitor.start()
+        except Exception as exc:
+            self.input_monitor = None
+            messagebox.showwarning(
+                "Input test could not start",
+                str(exc).strip() or "The selected input could not be opened.",
+                parent=self.root,
+            )
+            return
+        self.input_test_button.configure(text="Stop Test")
+        self.audio_level_text_var.set("Listening for sound")
+        self.activity_var.set(
+            "Input test is active. This does not start transcription or save audio."
+        )
+
+    def _microphone_index_for_test(self):
+        from .audio import parse_microphone_index
+        from .config import AUDIO_SOURCE_MICROPHONE
+        if self.audio_source_var.get() != AUDIO_SOURCE_MICROPHONE:
+            return None
+        return parse_microphone_index(self.microphone_var.get())
+
+    def _threadsafe_input_test_level(self, payload: dict) -> None:
+        self.root.after(0, self._apply_audio_level, payload)
+
+    def _stop_input_test(self) -> None:
+        monitor = self.input_monitor
+        self.input_monitor = None
+        if monitor is not None:
+            monitor.stop()
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(text="Test Input")
+        if self.session is None and self.audio_level_var is not None:
+            self.audio_level_var.set(0.0)
+            self.audio_level_text_var.set("Waiting for audio")
+
 
     def _color(self, key: str):
         # Resolve the same palette stored by the modern UI without importing it,
@@ -475,10 +732,61 @@ class ProductivityFeaturesMixin:
                     )
                 )
 
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(state="normal")
+        if hasattr(self, "summary_button"):
+            self.summary_button.configure(
+                state="normal" if self.document.entries else "disabled"
+            )
+        if hasattr(self, "application_audio_switch"):
+            self.application_audio_switch.configure(state="normal")
+        if hasattr(self, "application_refresh_button"):
+            self.application_refresh_button.configure(state="normal")
+
+    def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
+        super()._refresh_audio_inputs(auto_select=auto_select)
+        if not hasattr(self, "application_audio_dropdown"):
+            return
+        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+            from .application_audio import (
+                application_audio_support,
+                list_running_application_targets,
+            )
+            supported, _reason = application_audio_support()
+            labels = [
+                target.label for target in list_running_application_targets()
+            ] if supported else []
+            if not labels:
+                placeholder = (
+                    "No running application detected"
+                    if supported
+                    else "Selected-app audio helper unavailable"
+                )
+                labels = [placeholder]
+                disabled = [placeholder]
+            else:
+                disabled = []
+            self.application_audio_dropdown.configure(
+                values=labels,
+                disabled_values=disabled,
+            )
+            selected = self.application_audio_var.get()
+            if selected not in labels or selected in disabled:
+                selected = next(
+                    (label for label in labels if label not in disabled),
+                    labels[0],
+                )
+                self.application_audio_var.set(selected)
+                self.microphone_var.set(selected)
+            self.application_audio_frame.grid()
+        else:
+            self.application_audio_frame.grid_remove()
+
     # ------------------------------------------------------------------
     # Live session, pause, audio meter, recovery
     # ------------------------------------------------------------------
     def _start_requested(self) -> None:
+        self._stop_input_test()
         if self.session_title_var is not None:
             title = " ".join(self.session_title_var.get().strip().split())
         else:
@@ -558,6 +866,10 @@ class ProductivityFeaturesMixin:
 
     def _apply_audio_level(self, payload: dict) -> None:
         if self.audio_level_var is None or self.audio_level_text_var is None:
+            return
+        if payload.get("source_muted"):
+            self.audio_level_var.set(0.0)
+            self.audio_level_text_var.set("Selected app is off")
             return
         if payload.get("paused"):
             self.audio_level_var.set(0.0)
@@ -1134,6 +1446,45 @@ class ProductivityFeaturesMixin:
         )
         self.activity_var.set("Transcript copied to the clipboard.")
 
+
+    def _set_controls_for_loading(self) -> None:
+        self._stop_input_test()
+        super()._set_controls_for_loading()
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(state="disabled")
+        if hasattr(self, "summary_button"):
+            self.summary_button.configure(state="disabled")
+
+    def _set_controls_for_listening(self) -> None:
+        self._stop_input_test()
+        super()._set_controls_for_listening()
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(state="disabled")
+        if hasattr(self, "summary_button"):
+            self.summary_button.configure(state="normal")
+        if hasattr(self, "application_audio_switch"):
+            state = (
+                "normal"
+                if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION
+                else "disabled"
+            )
+            self.application_audio_switch.configure(state=state)
+        if hasattr(self, "application_audio_dropdown"):
+            state = (
+                "readonly"
+                if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION
+                else "disabled"
+            )
+            self.application_audio_dropdown.configure(state=state)
+
+    def _set_controls_for_finalizing(self) -> None:
+        self._stop_input_test()
+        super()._set_controls_for_finalizing()
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(state="disabled")
+        if hasattr(self, "summary_button"):
+            self.summary_button.configure(state="disabled")
+
     # ------------------------------------------------------------------
     # Storage manager
     # ------------------------------------------------------------------
@@ -1283,6 +1634,7 @@ class ProductivityFeaturesMixin:
     # Safe close
     # ------------------------------------------------------------------
     def _on_close(self) -> None:
+        self._stop_input_test()
         if not (self.model_downloading or self.model_loading or self.finalizing or self.session is not None):
             self._persist_current_document()
             if self.caption_window is not None:

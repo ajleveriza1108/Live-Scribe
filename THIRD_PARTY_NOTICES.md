@@ -13,7 +13,7 @@ buyer chooses a model for the first time.
 
 The `engines` registry also names optional researched projects such as
 DeepFilterNet, Qwen3-ASR, and whisper.cpp. They are not bundled or activated in
-v0.7.5. Before distributing any optional pack, review its code license, model
+v0.8.0. Before distributing any optional pack, review its code license, model
 license, model card, commercial-use terms, attribution requirements, binary
 redistribution requirements, and transitive dependencies.
 
@@ -30,3 +30,12 @@ and copyright remain with its authors.
 ## CustomTkinter
 
 Live Scribe uses CustomTkinter for its modern cross-platform interface. CustomTkinter is distributed under the MIT License. Its original license and copyright remain with its authors.
+
+## Microsoft Windows ApplicationLoopback sample
+
+The optional Windows selected-app helper is built from Microsoft's
+Windows-classic-samples ApplicationLoopback sample by an automated repository
+workflow. Review the upstream repository license and notices when distributing
+the compiled helper. Live Scribe changes the temporary WAV sharing flag so the
+Python application can read captured PCM while the sample is running.
+

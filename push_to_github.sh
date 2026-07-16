@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 repository_url="https://github.com/ajleveriza1108/Live-Scribe.git"
-commit_message="Add optional live noise reduction"
+commit_message="Add input controls summary and selected app audio"
 
 if ! command -v git >/dev/null 2>&1; then
   echo "Git is not installed. Install Git, then run this script again."

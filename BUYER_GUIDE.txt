@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.7.5 — BUYER GUIDE
+LIVE SCRIBE v0.8.1 — BUYER GUIDE
 
 WHAT LIVE SCRIBE DOES
 ---------------------
@@ -57,6 +57,51 @@ OPTIONAL NOISE REDUCTION
 Settings includes Light live noise reduction for transcription (optional). It is off by default and processes only audio sent to transcription. The original WAV remains unchanged. Use it for steady fan, air-conditioner, hum, or room hiss. Turn it off when quiet or distant speech becomes less clear.
 
 The separate Reduce steady background noise during WAV verification option creates an enhanced copy and preserves the original WAV. These are conservative tools, not perfect noise cancellation. No additional AI model is required.
+
+
+INTERVIEW MODE
+--------------
+Interview Mode prepares likely questions before an interview and privately
+shows prepared or local-AI answer suggestions.
+
+Create a profile with the target job, company, resume, job description,
+experience, skills, projects, strengths, weaknesses, and answer preferences.
+Choose Generate Interview Template and Question Bank.
+
+Prepared answers are matched locally and can appear almost immediately after a
+question is completed. Optional generated answers require a separately running
+local llama.cpp-compatible server.
+
+The transcript contains spoken words only. Private suggestions remain in the
+Interview Assistant panel.
+
+Version 0.8.0 labels one incoming audio stream at a time. Select Interviewer or
+Interviewee before the next phrase. Simultaneous microphone and computer-audio
+capture is planned separately and is not represented as complete here.
+
+Use live assistance only when the interview rules allow it. Preparation and
+mock practice are the safest primary uses.
+
+
+INPUT AND TRANSCRIPT TOOLS
+--------------------------
+Test Input displays a live sound bar without starting transcription or saving
+audio.
+
+The complete microphone dropdown is clickable. Microphones that cannot
+currently be opened are visible but disabled.
+
+Summarize & Format creates an offline quick summary, key points, decisions,
+action items, and a readable formatted transcript. The raw transcript remains
+unchanged.
+
+On Windows build 20348 or newer, Selected app audio can isolate a chosen
+application after the Windows helper is installed. Listen to this app can be
+turned off and on while the transcription session remains open. Other computer
+sounds can continue playing without being included in the selected-app capture.
+
+The selected-app option remains disabled until the repository's Windows helper
+workflow has built and installed the native helper.
 
 LIVE SESSION
 ------------

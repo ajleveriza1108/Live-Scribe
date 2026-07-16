@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.7.5**
+**Version 0.8.1**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -172,6 +172,124 @@ Use **Models → Check This PC Again** after moving the portable folder to anoth
 computer or drive. A visible report appears when the user manually requests that
 recheck.
 
+
+
+
+## v0.8.1 input and transcript tools
+
+### Selected Windows application audio
+
+On supported Windows versions, Live Scribe can isolate one selected application
+instead of transcribing every sound played by the computer. The application
+list uses visible running Windows apps. The selected app can be changed and the
+**Listen to this app** switch can be turned off or on without closing the
+transcription session.
+
+This feature uses Windows process-loopback capture and requires:
+
+- Windows build 20348 or newer
+- `engines/windows/LiveScribeApplicationLoopback.exe`
+
+The native helper is not faked through ordinary microphone capture. The
+repository includes an automated GitHub Actions workflow that builds Microsoft's
+official ApplicationLoopback sample, enables read sharing for Live Scribe's
+rolling reader, and commits the helper into the repository.
+
+Until the helper exists, the selected-app option is displayed disabled. Whole
+computer audio and microphone capture continue to work.
+
+### Summarize & Format
+
+The new button creates an offline extractive summary, key points, decisions,
+action items, and a readable speaker-formatted transcript. It does not overwrite
+the raw transcript and requires no additional LLM.
+
+### Fully clickable audio dropdowns
+
+The modern microphone and audio-source selectors now open when any part of the
+control is clicked, not only the arrow.
+
+### Unavailable microphones
+
+Microphones are checked with the audio backend before selection. Devices that
+cannot currently be opened remain visible but are disabled and labeled
+Unavailable.
+
+### Live input check
+
+**Test Input** opens only the selected audio input and displays a live sound
+level. It does not load a speech model, start transcription, or save a WAV.
+The same meter continues to show signal level during an active transcription.
+
+## Interview Mode
+
+Live Scribe now includes a separate Interview Mode foundation.
+
+### Interview Preparation Template
+
+The user can prepare:
+
+- applicant name
+- target job and company
+- interview type
+- preferred answer style and length
+- resume and job description
+- experience, skills, projects, and achievements
+- strengths and weaknesses
+- salary preference and availability
+- company notes
+
+**Generate Interview Template and Question Bank** creates a broad local bank of
+likely interview questions. Each item includes a category, alternative
+phrasings, keywords, answer points, and a truthful prepared-answer framework.
+
+The built-in bank covers introductions, resume questions, motivation,
+strengths, weaknesses, behavioral STAR questions, teamwork, conflict,
+leadership, failures, achievements, problem solving, communication, priorities,
+adaptability, ethics, remote work, salary, availability, closing questions, and
+role-specific questions.
+
+### Fast prepared-question matching
+
+While Interview Assist is active, completed interviewer phrases are matched
+locally against the prepared bank. Matching uses normalized wording, token
+overlap, fuzzy similarity, alternative phrasings, and keywords.
+
+- High-confidence prepared matches display immediately.
+- Possible matches display with their confidence.
+- Unmatched questions can be sent to an optional local AI.
+- Prepared Answers Only works without a local LLM.
+
+### Optional local AI answers
+
+Interview Mode includes an OpenAI-compatible local client intended for a local
+llama.cpp server. The default endpoint is:
+
+```text
+http://127.0.0.1:8080/v1/chat/completions
+```
+
+The local model is not bundled into the base app. The prompt requires concise,
+truthful answers and prohibits invented work history, qualifications,
+certifications, dates, tools, or achievements.
+
+### Transcript separation
+
+Spoken interviewer/interviewee text appears in the Interview Transcript.
+Prepared and locally generated suggestions appear only in the Private Interview
+Assistant panel. Suggestions are not silently inserted into the official
+transcript.
+
+### Audio-source boundary in v0.8.0
+
+This release labels one incoming transcription stream at a time. The user
+selects **Interviewer** or **Interviewee** for the next incoming phrase. This
+works for a shared microphone, a mixed audio device, or manually switching
+roles.
+
+True simultaneous computer-audio-plus-microphone capture is not claimed as
+complete in this release. It requires a later dual-capture controller and
+platform-specific testing.
 
 ## Optional noise reduction
 
@@ -444,7 +562,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-84 passed
+98 passed
 ```
 
 A real release still requires physical testing of:

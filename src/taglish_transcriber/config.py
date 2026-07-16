@@ -104,7 +104,12 @@ def model_id_from_display(value: str) -> str:
 
 AUDIO_SOURCE_MICROPHONE = "Microphone"
 AUDIO_SOURCE_SYSTEM = "Computer audio / livestream"
-AUDIO_SOURCE_OPTIONS = (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_SYSTEM)
+AUDIO_SOURCE_APPLICATION = "Selected app audio (Windows)"
+AUDIO_SOURCE_OPTIONS = (
+    AUDIO_SOURCE_MICROPHONE,
+    AUDIO_SOURCE_SYSTEM,
+    AUDIO_SOURCE_APPLICATION,
+)
 
 LANGUAGE_AUTO = "Auto Detect"
 LANGUAGE_ENGLISH = "English"
@@ -207,6 +212,8 @@ class AppSettings:
     language_label: str = LANGUAGE_TAGLISH
     audio_source_mode: str = AUDIO_SOURCE_MICROPHONE
     microphone_label: str = "Default input"
+    application_audio_label: str = ""
+    application_audio_enabled: bool = True
     device_mode: str = "Auto"
     sensitivity_label: str = "Normal"
     include_timestamps: bool = True
@@ -258,6 +265,8 @@ class AppSettings:
             settings.model_name = ""
         if settings.audio_source_mode not in AUDIO_SOURCE_OPTIONS:
             settings.audio_source_mode = AUDIO_SOURCE_MICROPHONE
+        if not isinstance(settings.application_audio_enabled, bool):
+            settings.application_audio_enabled = True
         if settings.language_label not in LANGUAGE_LABEL_TO_CODE:
             settings.language_label = LANGUAGE_TAGLISH
         if settings.device_mode not in {"Auto", "CPU", "NVIDIA GPU"}:

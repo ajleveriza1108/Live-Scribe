@@ -136,3 +136,31 @@ Before publishing:
 - Test quiet/distant speech and advise disabling it when clarity drops.
 - Do not market it as perfect, neural, or complete noise cancellation.
 
+## v0.8.0 Interview Mode checks
+
+- Create a profile from a resume and job description.
+- Confirm at least 30 questions are generated.
+- Confirm alternative wording and keywords are saved.
+- Test "What makes you the strongest candidate?" against "Why should we hire you?"
+- Confirm prepared suggestions never enter the official transcript.
+- Test Prepared Answers Only without a local LLM.
+- Test the local endpoint using a llama.cpp-compatible server.
+- Confirm the role selector labels incoming segments correctly.
+- Do not advertise simultaneous microphone-plus-system capture until that
+  platform-specific feature is implemented and tested.
+- Position real-time assistance only for permitted or disclosed use.
+
+## v0.8.1 validation
+
+- Confirm the entire microphone dropdown opens the list.
+- Confirm unavailable microphones are visible but cannot be selected.
+- Test Test Input before downloading or loading a speech model.
+- Confirm Test Input saves no recording.
+- Run Summarize & Format on a speaker-labeled transcript.
+- Confirm raw entries remain unchanged.
+- On Windows build 20348+, run the helper workflow, pull the committed EXE, and
+  test Chrome/Zoom/Teams process-tree capture.
+- While selected-app transcription is active, play sound from another app and
+  confirm it is excluded.
+- Toggle Listen to this app off and on without stopping the session.
+

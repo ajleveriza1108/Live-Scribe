@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Add optional live noise reduction"
+$CommitMessage = "Add input controls summary and selected app audio"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)

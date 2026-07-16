@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import collections
 import queue
+import os
+import subprocess
 import sys
 import threading
 import time
@@ -12,7 +14,12 @@ from typing import Any, Callable
 
 import numpy as np
 
-from .paths import RECORDING_IN_PROGRESS_DIR
+from .application_audio import (
+    WINDOWS_APP_AUDIO_HELPER,
+    application_audio_support,
+    parse_application_pid,
+)
+from .paths import RECORDING_IN_PROGRESS_DIR, TEMP_DIR
 
 TARGET_SAMPLE_RATE = 16_000
 SYSTEM_AUDIO_SAMPLE_RATE = 48_000
@@ -39,11 +46,14 @@ class MicrophoneInfo:
     sample_rate: float
     max_input_channels: int
     is_default: bool = False
+    available: bool = True
+    unavailable_reason: str = ""
 
     @property
     def label(self) -> str:
-        suffix = " (System default)" if self.is_default else ""
-        return f"{self.index}: {self.name}{suffix}"
+        default_suffix = " (System default)" if self.is_default else ""
+        availability_suffix = " — Unavailable" if not self.available else ""
+        return f"{self.index}: {self.name}{default_suffix}{availability_suffix}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +95,21 @@ def _default_input_index(sd) -> int | None:
         return None
 
 
+
+def _probe_microphone(sd, index: int, sample_rate: float) -> tuple[bool, str]:
+    try:
+        sd.check_input_settings(
+            device=index,
+            channels=1,
+            samplerate=sample_rate,
+            dtype="float32",
+        )
+        return True, ""
+    except Exception as exc:
+        message = str(exc).strip()
+        return False, message or "The device cannot currently be opened."
+
+
 def list_microphones() -> list[MicrophoneInfo]:
     try:
         import sounddevice as sd
@@ -99,26 +124,33 @@ def list_microphones() -> list[MicrophoneInfo]:
         channels = int(device.get("max_input_channels", 0))
         if channels <= 0:
             continue
+        sample_rate = float(device.get("default_samplerate", 44_100.0))
+        available, reason = _probe_microphone(sd, index, sample_rate)
         microphones.append(
             MicrophoneInfo(
                 index=index,
                 name=str(device.get("name", f"Input {index}")),
-                sample_rate=float(device.get("default_samplerate", 44_100.0)),
+                sample_rate=sample_rate,
                 max_input_channels=channels,
                 is_default=index == default_index,
+                available=available,
+                unavailable_reason=reason,
             )
         )
 
-    microphones.sort(key=lambda item: (not item.is_default, item.index))
+    microphones.sort(key=lambda item: (not item.available, not item.is_default, item.index))
     return microphones
 
 
 def detect_default_microphone_label() -> str:
     microphones = list_microphones()
     for microphone in microphones:
-        if microphone.is_default:
+        if microphone.is_default and microphone.available:
             return microphone.label
-    return microphones[0].label if microphones else "Default input"
+    for microphone in microphones:
+        if microphone.available:
+            return microphone.label
+    return "No available microphone detected"
 
 
 def parse_microphone_index(label: str) -> int | None:
@@ -772,6 +804,414 @@ class SystemAudioCapture(_CaptureOutputMixin):
         self._finish_wav()
         self._signal_end()
 
+
+def _wave_data_offset(path: Path) -> int | None:
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(256)
+    except OSError:
+        return None
+    marker = header.find(b"data")
+    if marker < 0 or marker + 8 > len(header):
+        return None
+    return marker + 8
+
+
+def _decode_process_loopback_pcm(data: bytes) -> np.ndarray:
+    usable = len(data) - (len(data) % 4)
+    if usable <= 0:
+        return np.empty(0, dtype=np.float32)
+    stereo = np.frombuffer(data[:usable], dtype="<i2").reshape(-1, 2)
+    return stereo.astype(np.float32).mean(axis=1) / 32768.0
+
+
+class ApplicationAudioCapture(_CaptureOutputMixin):
+    """Windows process-loopback capture using the optional native helper."""
+
+    def __init__(
+        self,
+        output_queue: queue.Queue[AudioBlock | None],
+        target_label: str,
+        recording_path: Path,
+        *,
+        enabled: bool = True,
+        event_callback: Callable[[str, Any], None] | None = None,
+        monitor_only: bool = False,
+    ) -> None:
+        self.output_queue = output_queue
+        self.target_label = target_label
+        self.recording_path = recording_path
+        self.event_callback = event_callback
+        self.monitor_only = monitor_only
+        self._sample_cursor = 0
+        self._source_rate = 44_100.0
+        self._recorder: WavRecorder | None = None
+        self._end_sent = False
+        self._closed = True
+        self._stop_event = threading.Event()
+        self._enabled = threading.Event()
+        if enabled:
+            self._enabled.set()
+        self._worker: threading.Thread | None = None
+        self._process: subprocess.Popen | None = None
+        self._process_lock = threading.Lock()
+        self._target_lock = threading.Lock()
+        self._target_generation = 0
+        self.selected_input_name = "Selected app audio"
+        self._paused = threading.Event()
+        self._last_level_emit = 0.0
+        self._quiet_since: float | None = None
+
+    def _submit_samples(self, raw_mono: np.ndarray) -> None:
+        if self.monitor_only:
+            self._report_audio_level(np.asarray(raw_mono, dtype=np.float32))
+            return
+        super()._submit_samples(raw_mono)
+
+    def set_enabled(self, enabled: bool) -> None:
+        if enabled:
+            self._enabled.set()
+            self._event("status", "Selected-app listening turned on.")
+        else:
+            self._enabled.clear()
+            self._terminate_helper()
+            self._event("app_audio_toggle", {"enabled": False})
+
+    def set_target(self, label: str) -> None:
+        with self._target_lock:
+            if label == self.target_label:
+                return
+            self.target_label = label
+            self._target_generation += 1
+        self._terminate_helper()
+        self._event("status", f"Selected-app audio changed to: {label}")
+
+    def start(self) -> None:
+        supported, reason = application_audio_support()
+        if not supported:
+            raise RuntimeError(reason)
+        if parse_application_pid(self.target_label) is None:
+            raise RuntimeError(
+                "Choose a running Windows application before starting selected-app audio."
+            )
+        self._closed = False
+        self._stop_event.clear()
+        self._end_sent = False
+        self._sample_cursor = 0
+        self.selected_input_name = f"Selected app — {self.target_label}"
+        if not self.monitor_only:
+            self._recorder = WavRecorder(self.recording_path, self._source_rate)
+            self._recorder.start()
+        self._worker = threading.Thread(
+            target=self._capture_loop,
+            name="application-audio-capture",
+            daemon=True,
+        )
+        self._worker.start()
+
+    def _target_snapshot(self) -> tuple[str, int]:
+        with self._target_lock:
+            return self.target_label, self._target_generation
+
+    def _terminate_helper(self) -> None:
+        with self._process_lock:
+            process = self._process
+        if process is None or process.poll() is not None:
+            return
+        try:
+            process.terminate()
+        except OSError:
+            pass
+
+    def _capture_loop(self) -> None:
+        try:
+            while not self._stop_event.is_set():
+                if not self._enabled.is_set():
+                    self._event(
+                        "audio_level",
+                        {
+                            "rms": 0.0,
+                            "peak": 0.0,
+                            "clipping": False,
+                            "quiet_seconds": 0.0,
+                            "paused": False,
+                            "source_muted": True,
+                        },
+                    )
+                    self._stop_event.wait(0.25)
+                    continue
+
+                label, generation = self._target_snapshot()
+                pid = parse_application_pid(label)
+                if pid is None:
+                    self._stop_event.wait(0.25)
+                    continue
+                self._capture_helper_window(pid, generation)
+        except Exception as exc:
+            if not self._stop_event.is_set():
+                self._event(
+                    "error",
+                    "Selected-app audio stopped unexpectedly. "
+                    f"Details: {str(exc).strip() or 'unknown app-audio error'}",
+                )
+        finally:
+            self._terminate_helper()
+            if not self.monitor_only:
+                self._finish_wav()
+                self._signal_end()
+
+    def _capture_helper_window(self, pid: int, generation: int) -> None:
+        TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        wav_path = TEMP_DIR / f"app-audio-{os.getpid()}-{pid}-{time.time_ns()}.wav"
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        command = [
+            str(WINDOWS_APP_AUDIO_HELPER),
+            str(pid),
+            "includetree",
+            str(wav_path),
+        ]
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                creationflags=creationflags,
+            )
+        except OSError as exc:
+            raise RuntimeError(
+                "The selected-app audio helper could not start."
+            ) from exc
+
+        with self._process_lock:
+            self._process = process
+
+        offset: int | None = None
+        last_read = 0
+        try:
+            while not self._stop_event.is_set():
+                _label, current_generation = self._target_snapshot()
+                if current_generation != generation or not self._enabled.is_set():
+                    break
+
+                if offset is None and wav_path.is_file():
+                    offset = _wave_data_offset(wav_path)
+                    if offset is not None:
+                        last_read = offset
+
+                if offset is not None:
+                    try:
+                        size = wav_path.stat().st_size
+                    except OSError:
+                        size = last_read
+                    available = size - last_read
+                    available -= available % 4
+                    if available > 0:
+                        try:
+                            with wav_path.open("rb") as handle:
+                                handle.seek(last_read)
+                                payload = handle.read(available)
+                        except OSError:
+                            payload = b""
+                        if payload:
+                            last_read += len(payload)
+                            mono = _decode_process_loopback_pcm(payload)
+                            if mono.size:
+                                self._submit_samples(mono)
+
+                if process.poll() is not None:
+                    # Read a final completed block before starting the next
+                    # ten-second helper window.
+                    if offset is not None:
+                        try:
+                            size = wav_path.stat().st_size
+                            available = size - last_read
+                            available -= available % 4
+                            if available > 0:
+                                with wav_path.open("rb") as handle:
+                                    handle.seek(last_read)
+                                    payload = handle.read(available)
+                                mono = _decode_process_loopback_pcm(payload)
+                                if mono.size:
+                                    self._submit_samples(mono)
+                        except OSError:
+                            pass
+                    break
+                self._stop_event.wait(0.06)
+        finally:
+            if process.poll() is None:
+                try:
+                    process.terminate()
+                    process.wait(timeout=2)
+                except Exception:
+                    try:
+                        process.kill()
+                    except OSError:
+                        pass
+            with self._process_lock:
+                if self._process is process:
+                    self._process = None
+            try:
+                wav_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def stop(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._stop_event.set()
+        self._terminate_helper()
+        if self._worker is not None:
+            self._worker.join(timeout=4)
+        self._worker = None
+        if not self.monitor_only:
+            self._finish_wav()
+            self._signal_end()
+
+
+class AudioInputMonitor:
+    """Lightweight input test that does not transcribe or save a recording."""
+
+    def __init__(
+        self,
+        *,
+        source_mode: str,
+        input_label: str,
+        microphone_index: int | None,
+        application_enabled: bool,
+        event_callback: Callable[[dict[str, Any]], None],
+    ) -> None:
+        self.source_mode = source_mode
+        self.input_label = input_label
+        self.microphone_index = microphone_index
+        self.application_enabled = application_enabled
+        self.event_callback = event_callback
+        self._stream = None
+        self._context = None
+        self._recorder = None
+        self._worker: threading.Thread | None = None
+        self._stop_event = threading.Event()
+        self._app_capture: ApplicationAudioCapture | None = None
+        self._last_emit = 0.0
+
+    def _emit(self, samples: np.ndarray) -> None:
+        now = time.monotonic()
+        if now - self._last_emit < 0.12:
+            return
+        self._last_emit = now
+        mono = np.asarray(samples, dtype=np.float32).reshape(-1)
+        if mono.size == 0:
+            return
+        rms = float(np.sqrt(np.mean(np.square(mono), dtype=np.float64)))
+        peak = float(np.max(np.abs(mono)))
+        self.event_callback(
+            {
+                "rms": rms,
+                "peak": peak,
+                "clipping": peak >= 0.98,
+                "quiet_seconds": 0.0,
+                "paused": False,
+                "input_test": True,
+            }
+        )
+
+    def start(self) -> None:
+        from .config import AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_SYSTEM
+
+        self._stop_event.clear()
+        if self.source_mode == AUDIO_SOURCE_APPLICATION:
+            queue_stub: queue.Queue[AudioBlock | None] = queue.Queue(maxsize=2)
+            self._app_capture = ApplicationAudioCapture(
+                queue_stub,
+                self.input_label,
+                TEMP_DIR / "input-test-unused.wav",
+                enabled=self.application_enabled,
+                event_callback=self._on_app_event,
+                monitor_only=True,
+            )
+            self._app_capture.start()
+            return
+
+        if self.source_mode == AUDIO_SOURCE_SYSTEM:
+            info, source = resolve_system_audio_source(self.input_label)
+            self._context = source.recorder(
+                samplerate=SYSTEM_AUDIO_SAMPLE_RATE,
+                channels=None,
+                blocksize=4_096,
+            )
+            self._recorder = self._context.__enter__()
+            self._worker = threading.Thread(
+                target=self._system_loop,
+                name="system-input-test",
+                daemon=True,
+            )
+            self._worker.start()
+            return
+
+        try:
+            import sounddevice as sd
+        except ImportError as exc:
+            raise RuntimeError("Microphone testing is not included in this package.") from exc
+        device_info = sd.query_devices(self.microphone_index, "input")
+        sample_rate = float(device_info["default_samplerate"])
+        blocksize = max(256, int(sample_rate * 0.08))
+
+        def callback(indata, _frames, _time_info, _status) -> None:
+            self._emit(np.asarray(indata[:, 0], dtype=np.float32))
+
+        self._stream = sd.InputStream(
+            device=self.microphone_index,
+            channels=1,
+            samplerate=sample_rate,
+            blocksize=blocksize,
+            dtype="float32",
+            callback=callback,
+        )
+        self._stream.start()
+
+    def _on_app_event(self, kind: str, payload: Any) -> None:
+        if kind == "audio_level" and isinstance(payload, dict):
+            payload = dict(payload)
+            payload["input_test"] = True
+            self.event_callback(payload)
+
+    def _system_loop(self) -> None:
+        try:
+            while not self._stop_event.is_set():
+                recorder = self._recorder
+                if recorder is None:
+                    break
+                data = recorder.record(numframes=3_840)
+                mono = downmix_to_mono(data)
+                if mono.size:
+                    self._emit(mono)
+        except Exception:
+            pass
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._app_capture is not None:
+            self._app_capture.stop()
+            self._app_capture = None
+        if self._stream is not None:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception:
+                pass
+            self._stream = None
+        if self._worker is not None:
+            self._worker.join(timeout=2)
+            self._worker = None
+        context = self._context
+        self._context = None
+        self._recorder = None
+        if context is not None:
+            try:
+                context.__exit__(None, None, None)
+            except Exception:
+                pass
 
 class SpeechSegmenter(threading.Thread):
     def __init__(

@@ -10,6 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .audio import (
+    AudioInputMonitor,
     detect_default_microphone_label,
     detect_default_system_audio_label,
     list_microphones,
@@ -17,7 +18,12 @@ from .audio import (
     parse_microphone_index,
     system_audio_setup_help,
 )
+from .application_audio import (
+    application_audio_support,
+    list_running_application_targets,
+)
 from .config import (
+    AUDIO_SOURCE_APPLICATION,
     AUDIO_SOURCE_MICROPHONE,
     AUDIO_SOURCE_OPTIONS,
     AUDIO_SOURCE_SYSTEM,
@@ -82,6 +88,12 @@ class TaglishTranscriberApp:
         self.model_var = tk.StringVar(value=self.settings.model_name or MODEL_PLACEHOLDER)
         self.language_var = tk.StringVar(value=self.settings.language_label)
         self.microphone_var = tk.StringVar(value=self.settings.microphone_label)
+        self.application_audio_var = tk.StringVar(
+            value=self.settings.application_audio_label
+        )
+        self.application_audio_enabled_var = tk.BooleanVar(
+            value=self.settings.application_audio_enabled
+        )
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
         self.timestamps_var = tk.BooleanVar(value=self.settings.include_timestamps)
@@ -182,6 +194,11 @@ class TaglishTranscriberApp:
             width=30,
         )
         self.microphone_combo.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        self.microphone_combo.bind(
+            "<Button-1>",
+            lambda _event: self.microphone_combo.event_generate("<Down>"),
+            add="+",
+        )
         ttk.Button(
             input_holder,
             text="Detect",
@@ -415,44 +432,133 @@ class TaglishTranscriberApp:
         self.settings.microphone_label = self.microphone_var.get()
         self.settings.save()
 
+    def _on_audio_input_selected(self, value: str | None = None) -> None:
+        selected = value or self.microphone_var.get()
+        self.microphone_var.set(selected)
+        self.settings.microphone_label = selected
+        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+            self.application_audio_var.set(selected)
+            self.settings.application_audio_label = selected
+            if self.session is not None:
+                self.session.set_application_audio_target(selected)
+        self.settings.save()
+        if hasattr(self, "_stop_input_test"):
+            self._stop_input_test()
+
+    def _on_application_audio_toggle(self) -> None:
+        enabled = bool(self.application_audio_enabled_var.get())
+        self.settings.application_audio_enabled = enabled
+        self.settings.save()
+        if self.session is not None:
+            self.session.set_application_audio_enabled(enabled)
+        state = "on" if enabled else "off"
+        self.activity_var.set(
+            f"Selected-app listening is {state}. The transcription session remains open."
+        )
+
+
     def _refresh_microphones(self, *, auto_select: bool) -> None:
         """Backward-compatible alias used by older integrations."""
         self._refresh_audio_inputs(auto_select=auto_select)
 
     def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
         source_mode = self.audio_source_var.get()
+        disabled_labels: list[str] = []
 
-        if source_mode == AUDIO_SOURCE_SYSTEM:
+        if source_mode == AUDIO_SOURCE_APPLICATION:
+            self.audio_input_label_var.set("Windows application")
+            supported, reason = application_audio_support()
+            targets = list_running_application_targets() if supported else []
+            labels = [target.label for target in targets]
+            if not labels:
+                placeholder = (
+                    "No running application detected"
+                    if supported
+                    else "Selected-app audio helper unavailable"
+                )
+                labels = [placeholder]
+                disabled_labels = [placeholder]
+            selected = self.settings.application_audio_label or labels[0]
+            if selected not in labels:
+                selected = labels[0]
+            self.application_audio_var.set(selected)
+            self.microphone_var.set(selected)
+            if hasattr(self, "application_audio_frame"):
+                self.application_audio_frame.grid()
+            self.activity_var.set(
+                f"Selected-app audio: {selected}"
+                if supported and selected not in disabled_labels
+                else reason
+            )
+        elif source_mode == AUDIO_SOURCE_SYSTEM:
             self.audio_input_label_var.set("Computer audio output")
             sources = list_system_audio_sources()
             labels = [source.label for source in sources]
             if not labels:
                 labels = ["No system-audio source detected"]
+                disabled_labels = list(labels)
             selected = detect_default_system_audio_label()
-        else:
-            self.audio_input_label_var.set("Microphone")
-            microphones = list_microphones()
-            labels = [microphone.label for microphone in microphones]
-            if not labels:
-                labels = ["Default input"]
-            selected = detect_default_microphone_label()
-
-        self.microphone_combo.configure(values=labels)
-        current = self.microphone_var.get()
-        if auto_select or current not in labels:
-            if selected not in labels:
-                selected = labels[0]
-            self.microphone_var.set(selected)
-
-        if source_mode == AUDIO_SOURCE_SYSTEM:
+            if hasattr(self, "application_audio_frame"):
+                self.application_audio_frame.grid_remove()
             if labels == ["No system-audio source detected"]:
                 self.activity_var.set(system_audio_setup_help())
             else:
                 self.activity_var.set(
-                    f"Detected livestream/system-audio source: {self.microphone_var.get()}"
+                    f"Detected livestream/system-audio source: {selected}"
                 )
         else:
-            self.activity_var.set(f"Detected microphone: {self.microphone_var.get()}")
+            self.audio_input_label_var.set("Microphone")
+            microphones = list_microphones()
+            labels = [microphone.label for microphone in microphones]
+            disabled_labels = [
+                microphone.label for microphone in microphones if not microphone.available
+            ]
+            available_labels = [
+                microphone.label for microphone in microphones if microphone.available
+            ]
+            if not labels:
+                labels = ["No available microphone detected"]
+                disabled_labels = list(labels)
+                available_labels = []
+            selected = detect_default_microphone_label()
+            if selected not in available_labels and available_labels:
+                selected = available_labels[0]
+            if hasattr(self, "application_audio_frame"):
+                self.application_audio_frame.grid_remove()
+            unavailable_count = len(disabled_labels)
+            if available_labels:
+                note = (
+                    f" • {unavailable_count} unavailable input"
+                    f"{'s' if unavailable_count != 1 else ''} disabled"
+                    if unavailable_count
+                    else ""
+                )
+                self.activity_var.set(f"Detected microphone: {selected}{note}")
+            else:
+                self.activity_var.set(
+                    "No usable microphone is available. Check Windows microphone "
+                    "permission and reconnect the device."
+                )
+
+        self.microphone_combo.configure(
+            values=labels,
+            disabled_values=disabled_labels,
+        )
+        current = self.microphone_var.get()
+        if auto_select or current not in labels or current in disabled_labels:
+            if selected not in labels or selected in disabled_labels:
+                selected = next(
+                    (label for label in labels if label not in disabled_labels),
+                    labels[0],
+                )
+            self.microphone_var.set(selected)
+
+        if source_mode == AUDIO_SOURCE_APPLICATION:
+            self.application_audio_var.set(self.microphone_var.get())
+            self.settings.application_audio_label = self.microphone_var.get()
+
+        if hasattr(self, "_stop_input_test"):
+            self._stop_input_test()
 
     def _selected_model_name(self) -> str:
         value = self.model_var.get().strip()
@@ -474,6 +580,8 @@ class TaglishTranscriberApp:
             audio_source_mode=self.audio_source_var.get(),
             language_label=self.language_var.get(),
             microphone_label=self.microphone_var.get(),
+            application_audio_label=self.application_audio_var.get(),
+            application_audio_enabled=self.application_audio_enabled_var.get(),
             device_mode=self.device_var.get(),
             sensitivity_label=self.sensitivity_var.get(),
             include_timestamps=self.timestamps_var.get(),
@@ -820,6 +928,29 @@ class TaglishTranscriberApp:
                 system_audio_setup_help(),
             )
             return
+        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+            supported, reason = application_audio_support()
+            if not supported:
+                messagebox.showwarning("Selected-app audio unavailable", reason)
+                return
+            if "PID " not in self.microphone_var.get():
+                messagebox.showwarning(
+                    "Choose an application",
+                    "Choose a running Windows application before starting.",
+                )
+                return
+        if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE:
+            selected_mics = {
+                item.label: item for item in list_microphones()
+            }
+            selected_info = selected_mics.get(self.microphone_var.get())
+            if selected_info is not None and not selected_info.available:
+                messagebox.showwarning(
+                    "Microphone unavailable",
+                    "The selected microphone cannot currently be opened. "
+                    "Choose an available microphone and try again.",
+                )
+                return
         if self.document.live_entries or self.document.final_entries:
             if not messagebox.askyesno(
                 "Start a new session",
@@ -872,6 +1003,7 @@ class TaglishTranscriberApp:
                 audio_input_label=self.settings.microphone_label,
                 context_prompt=topic_context,
                 live_noise_reduction=self.settings.live_noise_reduction,
+                application_audio_enabled=self.settings.application_audio_enabled,
             )
             session.start()
         except (ModelLoadError, RuntimeError, KeyError) as exc:

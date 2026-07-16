@@ -211,3 +211,36 @@ recorded-file transcription, and verification.
 
 `AppSettings.live_noise_reduction` defaults to false. When enabled, `LiveTranscriptionSession` calls `reduce_live_chunk_noise` after a complete speech chunk is produced and before Faster-Whisper receives it. The recorder receives untouched audio. The algorithm uses conservative NumPy spectral subtraction and adds no model weights or dependency. A failure falls back to original audio and emits one calm warning.
 
+## v0.8.0 Interview Mode foundation
+
+New modules:
+- `interview.py`: profile schema, question templates, role-specific bank
+  generation, fuzzy matching, profile persistence, prepared suggestions, and an
+  OpenAI-compatible local llama.cpp client.
+- `interview_ui.py`: Interview Mode page, preparation dialog, role selector,
+  assistance modes, transcript mirror, private suggestion panel, and live
+  segment matching.
+
+Prepared answers are deterministic and work without an LLM. Optional generated
+answers call a local `/v1/chat/completions` endpoint. The base app does not
+bundle an interview model.
+
+The transcript and assistant suggestions remain separate. v0.8.0 handles one
+incoming audio stream with selectable role labels. Dual simultaneous capture is
+reserved for a later platform-tested phase.
+
+## v0.8.1 input control and transcript tools
+
+- `ui_widgets.py` provides a full-surface dropdown with disabled entries.
+- Microphone enumeration probes input settings and exposes availability.
+- `AudioInputMonitor` provides a no-recording, no-transcription preflight meter.
+- `transcript_summary.py` provides deterministic offline extractive summary and
+  speaker formatting without changing transcript entries.
+- `application_audio.py` discovers visible Windows apps and checks native helper
+  support.
+- `ApplicationAudioCapture` reads the growing WAV produced by Microsoft's
+  process-loopback helper in repeated capture windows. The target and enabled
+  state can change without ending `LiveTranscriptionSession`.
+- A GitHub Actions workflow builds the official Windows sample, patches its WAV
+  handle to allow concurrent read sharing, and commits the helper binary.
+

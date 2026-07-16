@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from .audio import (
+    ApplicationAudioCapture,
     AudioBlock,
     MicrophoneCapture,
     SpeechChunk,
     SpeechSegmenter,
     SystemAudioCapture,
 )
-from .config import AUDIO_SOURCE_SYSTEM
+from .config import AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_SYSTEM
 from .models import TranscriptSegment, TranscriptionError, WhisperEngine
 from .noise_reduction import reduce_live_chunk_noise
 
@@ -38,6 +39,7 @@ class LiveTranscriptionSession:
         audio_input_label: str = "Default input",
         context_prompt: str | None = None,
         live_noise_reduction: bool = False,
+        application_audio_enabled: bool = True,
     ) -> None:
         self.engine = engine
         self.microphone_index = microphone_index
@@ -50,13 +52,22 @@ class LiveTranscriptionSession:
         self.audio_input_label = audio_input_label
         self.context_prompt = context_prompt
         self.live_noise_reduction = bool(live_noise_reduction)
+        self.application_audio_enabled = bool(application_audio_enabled)
         self._live_noise_warning_sent = False
 
         self.audio_queue: queue.Queue[AudioBlock | None] = queue.Queue(maxsize=300)
         self.chunk_queue: queue.Queue[SpeechChunk | None] = queue.Queue(maxsize=30)
         self.events: queue.Queue[SessionEvent] = queue.Queue()
 
-        if self.audio_source_mode == AUDIO_SOURCE_SYSTEM:
+        if self.audio_source_mode == AUDIO_SOURCE_APPLICATION:
+            self.capture = ApplicationAudioCapture(
+                output_queue=self.audio_queue,
+                target_label=self.audio_input_label,
+                recording_path=self.recording_path,
+                enabled=self.application_audio_enabled,
+                event_callback=self._on_audio_event,
+            )
+        elif self.audio_source_mode == AUDIO_SOURCE_SYSTEM:
             self.capture = SystemAudioCapture(
                 output_queue=self.audio_queue,
                 source_label=self.audio_input_label,
@@ -130,6 +141,15 @@ class LiveTranscriptionSession:
         self._paused = False
         self.capture.set_paused(False)
         self.events.put(SessionEvent(kind="resumed"))
+
+    def set_application_audio_enabled(self, enabled: bool) -> None:
+        if isinstance(self.capture, ApplicationAudioCapture):
+            self.capture.set_enabled(enabled)
+
+    def set_application_audio_target(self, label: str) -> None:
+        if isinstance(self.capture, ApplicationAudioCapture):
+            self.capture.set_target(label)
+            self.audio_input_label = label
 
     def stop(self) -> None:
         if not self._started or self._stopping:
