@@ -128,3 +128,11 @@ Before publishing:
 - Confirm both recorded-file buttons are disabled only during an active
   download, model load, live session, or transcription.
 
+## v0.7.5 noise-reduction checks
+
+- Confirm live reduction defaults off.
+- Confirm the original WAV remains unchanged.
+- Compare fan/hum audio with the switch on and off.
+- Test quiet/distant speech and advise disabling it when clarity drops.
+- Do not market it as perfect, neural, or complete noise cancellation.
+

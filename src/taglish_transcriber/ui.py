@@ -178,6 +178,9 @@ class _ModernBaseApp(_Controller):
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
         self.timestamps_var = tk.BooleanVar(value=self.settings.include_timestamps)
+        self.live_noise_reduction_var = tk.BooleanVar(
+            value=self.settings.live_noise_reduction
+        )
         self.noise_reduction_var = tk.BooleanVar(value=self.settings.noise_reduction)
         self.review_var = tk.BooleanVar(value=self.settings.grammar_diction_comments)
         self.live_appendix_var = tk.BooleanVar(value=self.settings.include_live_appendix)
@@ -320,7 +323,7 @@ class _ModernBaseApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.7.4",
+            text="Version 0.7.5",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=10, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -1132,6 +1135,31 @@ class _ModernBaseApp(_Controller):
         self.sensitivity_combo = self._modern_labeled_combo(
             session_card, 2, "Audio sensitivity", self.sensitivity_var, tuple(SENSITIVITY_THRESHOLDS)
         )
+        self.live_noise_switch = ctk.CTkSwitch(
+            session_card,
+            text="Light live noise reduction for transcription (optional)",
+            variable=self.live_noise_reduction_var,
+            progress_color=COLORS["accent"],
+            text_color=COLORS["text"],
+        )
+        self.live_noise_switch.grid(
+            row=2, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 5)
+        )
+        ctk.CTkLabel(
+            session_card,
+            text=(
+                "Targets steady fan, air-conditioner, hum, and room hiss. "
+                "It processes only audio sent to transcription; the original WAV stays unchanged. "
+                "Turn it off when quiet or distant speech becomes less clear."
+            ),
+            wraplength=880,
+            justify="left",
+            anchor="w",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(
+            row=3, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 18)
+        )
 
         verify_card = self._card(page, row=2, column=0, sticky="ew", padx=28, pady=(0, 14))
         verify_card.grid_columnconfigure(0, weight=1)
@@ -1153,7 +1181,7 @@ class _ModernBaseApp(_Controller):
         ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 12))
         self.noise_switch = ctk.CTkSwitch(
             verify_card,
-            text="Reduce steady background noise",
+            text="Reduce steady background noise during WAV verification",
             variable=self.noise_reduction_var,
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
@@ -1612,6 +1640,7 @@ class _ModernBaseApp(_Controller):
             combo.configure(state=state)
         switch_state = "normal" if state == "readonly" else "disabled"
         for switch in (
+            self.live_noise_switch,
             self.noise_switch,
             self.review_switch,
             self.appendix_switch,

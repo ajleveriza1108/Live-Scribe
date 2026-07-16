@@ -6,7 +6,10 @@ from pathlib import Path
 import numpy as np
 
 from src.taglish_transcriber.audio import WavRecorder
-from src.taglish_transcriber.noise_reduction import reduce_stationary_noise
+from src.taglish_transcriber.noise_reduction import (
+    reduce_live_chunk_noise,
+    reduce_stationary_noise,
+)
 
 
 def test_wav_recorder_writes_pcm_file(tmp_path: Path) -> None:
@@ -50,3 +53,23 @@ def test_noise_reduction_keeps_original_and_creates_output(tmp_path: Path) -> No
     with wave.open(str(output), "rb") as wav_file:
         assert wav_file.getframerate() == sample_rate
         assert wav_file.getnframes() == sample_rate
+
+
+def test_live_noise_reduction_preserves_shape_and_reduces_quiet_noise() -> None:
+    sample_rate = 16_000
+    time_axis = np.arange(sample_rate * 2, dtype=np.float32) / sample_rate
+    steady_noise = 0.025 * np.sin(2 * np.pi * 90 * time_axis)
+    speech = np.zeros_like(steady_noise)
+    speech_start = sample_rate // 2
+    speech_end = speech_start + sample_rate
+    speech[speech_start:speech_end] = 0.18 * np.sin(
+        2 * np.pi * 440 * time_axis[speech_start:speech_end]
+    )
+    source = (steady_noise + speech).astype(np.float32)
+    cleaned = reduce_live_chunk_noise(source, sample_rate)
+    assert cleaned.shape == source.shape
+    assert cleaned.dtype == np.float32
+    assert np.all(np.isfinite(cleaned))
+    quiet_source_rms = float(np.sqrt(np.mean(source[:speech_start] ** 2)))
+    quiet_cleaned_rms = float(np.sqrt(np.mean(cleaned[:speech_start] ** 2)))
+    assert quiet_cleaned_rms < quiet_source_rms

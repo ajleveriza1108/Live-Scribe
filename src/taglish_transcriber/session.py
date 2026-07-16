@@ -15,6 +15,7 @@ from .audio import (
 )
 from .config import AUDIO_SOURCE_SYSTEM
 from .models import TranscriptSegment, TranscriptionError, WhisperEngine
+from .noise_reduction import reduce_live_chunk_noise
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +37,7 @@ class LiveTranscriptionSession:
         audio_source_mode: str = "Microphone",
         audio_input_label: str = "Default input",
         context_prompt: str | None = None,
+        live_noise_reduction: bool = False,
     ) -> None:
         self.engine = engine
         self.microphone_index = microphone_index
@@ -47,6 +49,8 @@ class LiveTranscriptionSession:
         self.audio_source_mode = audio_source_mode
         self.audio_input_label = audio_input_label
         self.context_prompt = context_prompt
+        self.live_noise_reduction = bool(live_noise_reduction)
+        self._live_noise_warning_sent = False
 
         self.audio_queue: queue.Queue[AudioBlock | None] = queue.Queue(maxsize=300)
         self.chunk_queue: queue.Queue[SpeechChunk | None] = queue.Queue(maxsize=30)
@@ -153,9 +157,28 @@ class LiveTranscriptionSession:
                 )
             )
 
+            transcription_audio = chunk.samples
+            if self.live_noise_reduction:
+                try:
+                    transcription_audio = reduce_live_chunk_noise(chunk.samples)
+                except Exception as exc:
+                    if not self._live_noise_warning_sent:
+                        self._live_noise_warning_sent = True
+                        self.events.put(
+                            SessionEvent(
+                                kind="warning",
+                                payload=(
+                                    "Live noise reduction could not process one phrase, "
+                                    "so Live Scribe continued with the original audio. "
+                                    f"Details: {str(exc).strip() or 'audio processing error'}"
+                                ),
+                            )
+                        )
+                    transcription_audio = chunk.samples
+
             try:
                 segments = self.engine.transcribe(
-                    audio=chunk.samples,
+                    audio=transcription_audio,
                     chunk_start=chunk.start,
                     language_code=self.language_code,
                     hotwords=self.hotwords,

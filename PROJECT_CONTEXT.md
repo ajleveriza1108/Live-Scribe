@@ -207,3 +207,7 @@ app explains the requirement and offers to navigate to Models.
 Both controls remain disabled during model loading/downloading, live capture,
 recorded-file transcription, and verification.
 
+## v0.7.5 optional live noise reduction
+
+`AppSettings.live_noise_reduction` defaults to false. When enabled, `LiveTranscriptionSession` calls `reduce_live_chunk_noise` after a complete speech chunk is produced and before Faster-Whisper receives it. The recorder receives untouched audio. The algorithm uses conservative NumPy spectral subtraction and adds no model weights or dependency. A failure falls back to original audio and emits one calm warning.
+

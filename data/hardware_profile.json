@@ -1,6 +1,6 @@
 {
   "check_version": 2,
-  "checked_at": "2026-07-15T14:21:26.373713+00:00",
+  "checked_at": "2026-07-16T00:28:02.535256+00:00",
   "recommended_model": "large-v3-turbo",
   "snapshot": {
     "os_name": "Windows 10",
@@ -8,7 +8,7 @@
     "cpu_name": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
     "cpu_threads": 16,
     "total_ram_bytes": 34166939648,
-    "free_disk_bytes": 521734950912,
+    "free_disk_bytes": 522084589568,
     "cuda_device_count": 1,
     "gpu_name": "NVIDIA GeForce RTX 2050",
     "gpu_vram_bytes": 4294967296,

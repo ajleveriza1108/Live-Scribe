@@ -85,6 +85,9 @@ class TaglishTranscriberApp:
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
         self.timestamps_var = tk.BooleanVar(value=self.settings.include_timestamps)
+        self.live_noise_reduction_var = tk.BooleanVar(
+            value=self.settings.live_noise_reduction
+        )
         self.noise_reduction_var = tk.BooleanVar(value=self.settings.noise_reduction)
         self.review_var = tk.BooleanVar(value=self.settings.grammar_diction_comments)
         self.live_appendix_var = tk.BooleanVar(value=self.settings.include_live_appendix)
@@ -200,6 +203,22 @@ class TaglishTranscriberApp:
         self.audio_source_combo.bind("<<ComboboxSelected>>", self._on_audio_source_selected)
         self.model_combo.bind("<<ComboboxSelected>>", self._on_model_selected)
 
+        live_noise_row = ttk.Frame(settings_frame)
+        live_noise_row.grid(row=1, column=0, columnspan=6, sticky="ew", pady=(10, 0))
+        ttk.Checkbutton(
+            live_noise_row,
+            text="Light live noise reduction for transcription (optional)",
+            variable=self.live_noise_reduction_var,
+        ).pack(side="left")
+        ttk.Label(
+            live_noise_row,
+            text=(
+                "Targets steady fan/hum noise. The original WAV stays unchanged; "
+                "turn it off if quiet speech becomes less clear."
+            ),
+            wraplength=650,
+        ).pack(side="left", padx=(12, 0))
+
         options_frame = ttk.LabelFrame(container, text="WAV verification options", padding=10)
         options_frame.grid(row=3, column=0, sticky="ew", pady=(9, 0))
         ttk.Label(
@@ -212,7 +231,7 @@ class TaglishTranscriberApp:
         ).grid(row=0, column=0, padx=(0, 16), sticky="w")
         ttk.Checkbutton(
             options_frame,
-            text="Reduce steady background noise",
+            text="Reduce steady background noise during WAV verification",
             variable=self.noise_reduction_var,
         ).grid(row=0, column=1, padx=(0, 14))
         ttk.Checkbutton(
@@ -460,6 +479,7 @@ class TaglishTranscriberApp:
             include_timestamps=self.timestamps_var.get(),
             # Kept in settings for backward compatibility; WAV verification is now manual.
             final_accuracy_pass=False,
+            live_noise_reduction=self.live_noise_reduction_var.get(),
             noise_reduction=self.noise_reduction_var.get(),
             grammar_diction_comments=self.review_var.get(),
             include_live_appendix=self.live_appendix_var.get(),
@@ -851,6 +871,7 @@ class TaglishTranscriberApp:
                 audio_source_mode=self.settings.audio_source_mode,
                 audio_input_label=self.settings.microphone_label,
                 context_prompt=topic_context,
+                live_noise_reduction=self.settings.live_noise_reduction,
             )
             session.start()
         except (ModelLoadError, RuntimeError, KeyError) as exc:
@@ -876,13 +897,20 @@ class TaglishTranscriberApp:
         self._set_controls_for_listening()
         self._update_model_status()
         self.status_var.set("Listening")
+        noise_note = (
+            " Light live noise reduction is on for transcription; the original WAV remains unchanged."
+            if self.settings.live_noise_reduction
+            else ""
+        )
         if self.settings.audio_source_mode == AUDIO_SOURCE_SYSTEM:
             self.activity_var.set(
                 "Livestream transcription is active. Keep the stream playing through the selected output."
+                + noise_note
             )
         else:
             self.activity_var.set(
                 "Speak naturally. The live text is intentionally left unpolished until Stop."
+                + noise_note
             )
         self.recording_var.set(f"Recording WAV: {session.recording_path.name}")
         self.notebook.select(0)

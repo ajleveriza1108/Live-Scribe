@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.7.4**
+**Version 0.7.5**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -171,6 +171,27 @@ a warning rather than an automatic block.
 Use **Models → Check This PC Again** after moving the portable folder to another
 computer or drive. A visible report appears when the user manually requests that
 recheck.
+
+
+## Optional noise reduction
+
+Live Scribe provides two separate, model-free options.
+
+### Light live noise reduction
+
+Enable **Settings → Session settings → Light live noise reduction for transcription (optional)**. It is off by default. It conservatively processes each completed phrase before Faster-Whisper receives it.
+
+- The original WAV remains unchanged.
+- No additional AI model, LLM, or dependency is downloaded.
+- It targets steady fan, air-conditioner, hum, and room hiss.
+- It cannot reliably remove conversations, music, barking, keyboard impacts, or rapidly changing noise.
+- Turn it off when quiet or distant speech becomes less clear.
+
+### WAV-verification noise reduction
+
+The existing option is labeled **Reduce steady background noise during WAV verification**. It creates an enhanced copy for the separate accuracy pass while preserving the original WAV.
+
+Neither option is marketed as perfect or complete noise cancellation.
 
 ## Productivity features
 
@@ -423,7 +444,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-78 passed
+84 passed
 ```
 
 A real release still requires physical testing of:

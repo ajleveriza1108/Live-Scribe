@@ -2,7 +2,7 @@
 Set-Location $PSScriptRoot
 
 $RepositoryUrl = "https://github.com/ajleveriza1108/Live-Scribe.git"
-$CommitMessage = "Enable recorded-file selection while idle"
+$CommitMessage = "Add optional live noise reduction"
 
 function Assert-GitSuccess {
     param([Parameter(Mandatory = $true)][string]$Action)

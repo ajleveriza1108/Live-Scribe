@@ -1,4 +1,4 @@
-# Research and Architecture Decisions — v0.7.4
+# Research and Architecture Decisions — v0.7.5
 
 ## Selected core
 Faster-Whisper remains the default because it already supports multilingual Whisper models, voice activity detection, word timestamps, hotword hints, CPU quantization, and NVIDIA GPU execution.

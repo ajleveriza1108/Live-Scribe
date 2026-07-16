@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.7.4 — BUYER GUIDE
+LIVE SCRIBE v0.7.5 — BUYER GUIDE
 
 WHAT LIVE SCRIBE DOES
 ---------------------
@@ -50,6 +50,13 @@ FIRST USE
 4. Choose one buyer-friendly speech quality.
 5. Download it once. A stopped download can be resumed later.
 6. Choose the language and topic profile.
+
+
+OPTIONAL NOISE REDUCTION
+------------------------
+Settings includes Light live noise reduction for transcription (optional). It is off by default and processes only audio sent to transcription. The original WAV remains unchanged. Use it for steady fan, air-conditioner, hum, or room hiss. Turn it off when quiet or distant speech becomes less clear.
+
+The separate Reduce steady background noise during WAV verification option creates an enhanced copy and preserves the original WAV. These are conservative tools, not perfect noise cancellation. No additional AI model is required.
 
 LIVE SESSION
 ------------

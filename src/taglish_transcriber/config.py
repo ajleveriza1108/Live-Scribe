@@ -211,6 +211,7 @@ class AppSettings:
     sensitivity_label: str = "Normal"
     include_timestamps: bool = True
     final_accuracy_pass: bool = False
+    live_noise_reduction: bool = False
     noise_reduction: bool = True
     grammar_diction_comments: bool = True
     include_live_appendix: bool = True
@@ -265,6 +266,10 @@ class AppSettings:
             settings.sensitivity_label = "Normal"
         if settings.theme_name not in THEME_OPTIONS:
             settings.theme_name = THEME_OLED
+        if not isinstance(settings.live_noise_reduction, bool):
+            settings.live_noise_reduction = False
+        if not isinstance(settings.noise_reduction, bool):
+            settings.noise_reduction = True
         if not isinstance(settings.topic_profile_id, str) or not settings.topic_profile_id.strip():
             settings.topic_profile_id = DEFAULT_TOPIC_PROFILE_ID
         if not isinstance(settings.hardware_check_completed, bool):
