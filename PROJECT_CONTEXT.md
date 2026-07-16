@@ -244,3 +244,14 @@ reserved for a later platform-tested phase.
 - A GitHub Actions workflow builds the official Windows sample, patches its WAV
   handle to allow concurrent read sharing, and commits the helper binary.
 
+## v0.8.2 dropdown startup recursion fix
+
+`WholeClickableDropdown` now sets `_dropdown_ready = False` before
+`CTkButton.__init__`. CustomTkinter may call the overridden `configure()` while
+constructing cursor state. The override delegates directly to
+`ctk.CTkButton.configure()` and skips synchronization until construction
+finishes.
+
+`_sync_text()` also calls the base implementation directly, removing the
+previous `_sync_text -> configure -> _sync_text` recursion.
+

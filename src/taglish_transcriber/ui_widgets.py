@@ -28,6 +28,12 @@ class WholeClickableDropdown(ctk.CTkButton):
         self.disabled_values = set(disabled_values)
         self.selection_command = command
         self._logical_state = kwargs.pop("state", "normal")
+
+        # CustomTkinter calls self.configure() while CTkButton.__init__()
+        # is still running. Keep display synchronization disabled until
+        # the base widget has finished constructing its internal state.
+        self._dropdown_ready = False
+
         kwargs.pop("text", None)
         kwargs.pop("textvariable", None)
         super().__init__(
@@ -37,6 +43,8 @@ class WholeClickableDropdown(ctk.CTkButton):
             anchor="w",
             **kwargs,
         )
+
+        self._dropdown_ready = True
         self.variable.trace_add("write", self._variable_changed)
         self._sync_text()
 
@@ -44,8 +52,14 @@ class WholeClickableDropdown(ctk.CTkButton):
         self._sync_text()
 
     def _sync_text(self) -> None:
+        if not getattr(self, "_dropdown_ready", False):
+            return
         value = self.variable.get().strip() or "Choose an option"
-        self.configure(text=f"{value}    ▼")
+
+        # Call the CTkButton implementation directly. Calling
+        # self.configure() here would re-enter this class's configure()
+        # override and recurse until Python raises RecursionError.
+        ctk.CTkButton.configure(self, text=f"{value}    ▼")
 
     def get(self) -> str:
         return self.variable.get()
@@ -57,15 +71,28 @@ class WholeClickableDropdown(ctk.CTkButton):
         values = kwargs.pop("values", None)
         disabled_values = kwargs.pop("disabled_values", None)
         state = kwargs.pop("state", None)
+
         if values is not None:
             self.values = list(values)
         if disabled_values is not None:
             self.disabled_values = set(disabled_values)
         if state is not None:
             self._logical_state = state
-            kwargs["state"] = "disabled" if state == "disabled" else "normal"
-        result = super().configure(require_redraw=require_redraw, **kwargs)
-        self._sync_text()
+            kwargs["state"] = (
+                "disabled" if state == "disabled" else "normal"
+            )
+
+        # Use the base implementation directly so CustomTkinter's own
+        # initialization-time configure calls cannot loop through
+        # _sync_text -> configure -> _sync_text.
+        result = ctk.CTkButton.configure(
+            self,
+            require_redraw=require_redraw,
+            **kwargs,
+        )
+
+        if getattr(self, "_dropdown_ready", False):
+            self._sync_text()
         return result
 
     config = configure
@@ -79,6 +106,7 @@ class WholeClickableDropdown(ctk.CTkButton):
     def _open_dropdown(self) -> None:
         if self._logical_state == "disabled":
             return
+
         background, foreground, active = self._menu_colors()
         menu = tk.Menu(
             self,
@@ -92,14 +120,23 @@ class WholeClickableDropdown(ctk.CTkButton):
             borderwidth=1,
             font=self._font,
         )
+
         for value in self.values:
             menu.add_command(
                 label=value,
-                state=("disabled" if value in self.disabled_values else "normal"),
+                state=(
+                    "disabled"
+                    if value in self.disabled_values
+                    else "normal"
+                ),
                 command=lambda selected=value: self._select(selected),
             )
+
         try:
-            menu.tk_popup(self.winfo_rootx(), self.winfo_rooty() + self.winfo_height())
+            menu.tk_popup(
+                self.winfo_rootx(),
+                self.winfo_rooty() + self.winfo_height(),
+            )
         finally:
             menu.grab_release()
 

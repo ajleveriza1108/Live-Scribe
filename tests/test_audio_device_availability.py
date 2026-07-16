@@ -20,3 +20,13 @@ def test_whole_dropdown_supports_disabled_items() -> None:
     assert "class WholeClickableDropdown" in source
     assert "disabled_values" in source
     assert "tk_popup" in source
+
+
+
+def test_dropdown_sync_calls_base_configure_directly() -> None:
+    source = (
+        ROOT / "src" / "taglish_transcriber" / "ui_widgets.py"
+    ).read_text(encoding="utf-8")
+    assert 'self._dropdown_ready = False' in source
+    assert 'ctk.CTkButton.configure(self, text=' in source
+    assert 'getattr(self, "_dropdown_ready", False)' in source

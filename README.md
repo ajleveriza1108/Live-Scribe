@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.8.1**
+**Version 0.8.2**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -174,6 +174,22 @@ recheck.
 
 
 
+
+
+## v0.8.2 dropdown startup hotfix
+
+The v0.8.1 full-surface dropdown overrode `configure()` and then called
+`_sync_text()`. `_sync_text()` called the same override again, causing an
+unbounded recursion during CustomTkinter button initialization.
+
+The corrected widget:
+
+- disables display synchronization until the base CTkButton is fully built
+- calls `ctk.CTkButton.configure()` directly for internal text updates
+- preserves disabled values and full-surface click behavior
+- keeps `readonly` as a logical dropdown state
+- includes a regression test that reproduces CustomTkinter calling
+  `self.configure(cursor="hand2")` from its constructor
 
 ## v0.8.1 input and transcript tools
 
@@ -562,7 +578,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-98 passed
+101 passed
 ```
 
 A real release still requires physical testing of:

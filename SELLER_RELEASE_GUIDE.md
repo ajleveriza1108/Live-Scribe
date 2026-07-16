@@ -164,3 +164,11 @@ Before publishing:
   confirm it is excluded.
 - Toggle Listen to this app off and on without stopping the session.
 
+## v0.8.2 startup regression check
+
+- Launch the source edition through `launchers/start_windows.bat`.
+- Confirm Live Scribe reaches the main window.
+- Click anywhere on the microphone and audio-source dropdown controls.
+- Confirm disabled microphones remain unselectable.
+- Change themes and confirm dropdown text remains synchronized.
+
