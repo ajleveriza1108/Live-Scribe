@@ -23,3 +23,8 @@ data/unfinished_session.json
 data/sessions.sqlite3
 data/sessions.sqlite3-shm
 data/sessions.sqlite3-wal
+data/.first-run-complete
+data/interview_profiles.json
+.coverage
+htmlcov/
+*.log

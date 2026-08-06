@@ -11,7 +11,9 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .audio import (
     AudioInputMonitor,
+    detect_default_audio_output_label,
     detect_default_microphone_label,
+    list_audio_outputs,
     detect_default_system_audio_label,
     list_microphones,
     list_system_audio_sources,
@@ -88,6 +90,12 @@ class TaglishTranscriberApp:
         self.model_var = tk.StringVar(value=self.settings.model_name or MODEL_PLACEHOLDER)
         self.language_var = tk.StringVar(value=self.settings.language_label)
         self.microphone_var = tk.StringVar(value=self.settings.microphone_label)
+        self.microphone_listen_var = tk.BooleanVar(
+            value=self.settings.microphone_listen_enabled
+        )
+        self.microphone_monitor_output_var = tk.StringVar(
+            value=self.settings.microphone_monitor_output_label
+        )
         self.application_audio_var = tk.StringVar(
             value=self.settings.application_audio_label
         )
@@ -100,6 +108,11 @@ class TaglishTranscriberApp:
         self.live_noise_reduction_var = tk.BooleanVar(
             value=self.settings.live_noise_reduction
         )
+        self.smart_vad_var = tk.BooleanVar(value=self.settings.smart_vad)
+        self.memory_saver_var = tk.BooleanVar(
+            value=self.settings.memory_saver
+        )
+        self._engine_release_after_id = None
         self.noise_reduction_var = tk.BooleanVar(value=self.settings.noise_reduction)
         self.review_var = tk.BooleanVar(value=self.settings.grammar_diction_comments)
         self.live_appendix_var = tk.BooleanVar(value=self.settings.include_live_appendix)
@@ -422,8 +435,19 @@ class TaglishTranscriberApp:
         holder.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 8, 0))
         holder.columnconfigure(0, weight=1)
         ttk.Label(holder, text=label).grid(row=0, column=0, sticky="w")
-        combo = ttk.Combobox(holder, textvariable=variable, values=values, state="readonly", width=width)
+        combo = ttk.Combobox(
+            holder,
+            textvariable=variable,
+            values=values,
+            state="readonly",
+            width=width,
+        )
         combo.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        combo.bind(
+            "<Button-1>",
+            lambda _event, widget=combo: widget.event_generate("<Down>"),
+            add="+",
+        )
         return combo
 
     def _on_audio_source_selected(self, _event=None) -> None:
@@ -431,6 +455,8 @@ class TaglishTranscriberApp:
         self._refresh_audio_inputs(auto_select=True)
         self.settings.microphone_label = self.microphone_var.get()
         self.settings.save()
+        if hasattr(self, "_restart_microphone_monitor_preview"):
+            self._restart_microphone_monitor_preview()
 
     def _on_audio_input_selected(self, value: str | None = None) -> None:
         selected = value or self.microphone_var.get()
@@ -444,6 +470,8 @@ class TaglishTranscriberApp:
         self.settings.save()
         if hasattr(self, "_stop_input_test"):
             self._stop_input_test()
+        if hasattr(self, "_restart_microphone_monitor_preview"):
+            self._restart_microphone_monitor_preview()
 
     def _on_application_audio_toggle(self) -> None:
         enabled = bool(self.application_audio_enabled_var.get())
@@ -466,7 +494,7 @@ class TaglishTranscriberApp:
         disabled_labels: list[str] = []
 
         if source_mode == AUDIO_SOURCE_APPLICATION:
-            self.audio_input_label_var.set("Windows application")
+            self.audio_input_label_var.set("Window or application")
             supported, reason = application_audio_support()
             targets = list_running_application_targets() if supported else []
             labels = [target.label for target in targets]
@@ -508,14 +536,14 @@ class TaglishTranscriberApp:
                 )
         else:
             self.audio_input_label_var.set("Microphone")
-            microphones = list_microphones()
+            microphones = [
+                microphone
+                for microphone in list_microphones()
+                if microphone.available
+            ]
             labels = [microphone.label for microphone in microphones]
-            disabled_labels = [
-                microphone.label for microphone in microphones if not microphone.available
-            ]
-            available_labels = [
-                microphone.label for microphone in microphones if microphone.available
-            ]
+            disabled_labels = []
+            available_labels = list(labels)
             if not labels:
                 labels = ["No available microphone detected"]
                 disabled_labels = list(labels)
@@ -525,15 +553,11 @@ class TaglishTranscriberApp:
                 selected = available_labels[0]
             if hasattr(self, "application_audio_frame"):
                 self.application_audio_frame.grid_remove()
-            unavailable_count = len(disabled_labels)
             if available_labels:
-                note = (
-                    f" • {unavailable_count} unavailable input"
-                    f"{'s' if unavailable_count != 1 else ''} disabled"
-                    if unavailable_count
-                    else ""
+                self.activity_var.set(
+                    f"Detected microphone: {selected}. "
+                    "Inactive or unusable inputs are hidden."
                 )
-                self.activity_var.set(f"Detected microphone: {selected}{note}")
             else:
                 self.activity_var.set(
                     "No usable microphone is available. Check Windows microphone "
@@ -565,7 +589,11 @@ class TaglishTranscriberApp:
         return value if value in MODEL_OPTIONS else ""
 
     def _on_model_selected(self, _event=None) -> None:
-        self.settings.model_name = self._selected_model_name()
+        selected_model = self._selected_model_name()
+        if self.engine is not None and self.engine.model_name != selected_model:
+            self.engine.unload()
+            self.engine = None
+        self.settings.model_name = selected_model
         self.settings.save()
         self._update_model_status()
         if not (self.model_loading or self.model_downloading or self.finalizing or self.session is not None):
@@ -580,6 +608,8 @@ class TaglishTranscriberApp:
             audio_source_mode=self.audio_source_var.get(),
             language_label=self.language_var.get(),
             microphone_label=self.microphone_var.get(),
+            microphone_listen_enabled=self.microphone_listen_var.get(),
+            microphone_monitor_output_label=self.microphone_monitor_output_var.get(),
             application_audio_label=self.application_audio_var.get(),
             application_audio_enabled=self.application_audio_enabled_var.get(),
             device_mode=self.device_var.get(),
@@ -588,6 +618,8 @@ class TaglishTranscriberApp:
             # Kept in settings for backward compatibility; WAV verification is now manual.
             final_accuracy_pass=False,
             live_noise_reduction=self.live_noise_reduction_var.get(),
+            smart_vad=self.smart_vad_var.get(),
+            memory_saver=self.memory_saver_var.get(),
             noise_reduction=self.noise_reduction_var.get(),
             grammar_diction_comments=self.review_var.get(),
             include_live_appendix=self.live_appendix_var.get(),
@@ -625,7 +657,10 @@ class TaglishTranscriberApp:
             self.document.recording_path
             and self.document.recording_path.exists()
         )
-        self.start_button.configure(state="normal" if ready else "disabled")
+        self.start_button.configure(
+            state="normal",
+            text=("Start Listening" if ready else "Set Up Listening"),
+        )
         self.stop_button.configure(state="disabled")
         self.verify_wav_button.configure(
             state="normal" if recording_ready and self.engine is not None else "disabled",
@@ -903,21 +938,72 @@ class TaglishTranscriberApp:
             self.settings.topic_profile_id = profile.id
         return profile.context_prompt(), profile.terms_for_recognition()
 
+    def _cancel_engine_release(self) -> None:
+        after_id = getattr(self, "_engine_release_after_id", None)
+        if after_id is not None:
+            try:
+                self.root.after_cancel(after_id)
+            except Exception:
+                pass
+        self._engine_release_after_id = None
+
+    def _schedule_engine_release(self) -> None:
+        self._cancel_engine_release()
+        if (
+            not getattr(self.settings, "memory_saver", True)
+            or self.engine is None
+            or self.session is not None
+            or self.finalizing
+        ):
+            return
+        delay = self.engine.policy.model_release_delay_ms
+        self._engine_release_after_id = self.root.after(
+            delay,
+            self._release_idle_engine,
+        )
+
+    def _release_idle_engine(self) -> None:
+        self._engine_release_after_id = None
+        if (
+            self.session is not None
+            or self.finalizing
+            or self.model_loading
+            or self.model_downloading
+            or self.engine is None
+        ):
+            return
+        self.engine.unload()
+        self.engine = None
+        self.activity_var.set(
+            "Memory Saver released the speech model from RAM. "
+            "It will reload automatically for the next transcription."
+        )
+        self._set_controls_for_idle()
+
     def _start_requested(self) -> None:
+        self._cancel_engine_release()
         if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:
             return
         model_name = self._selected_model_name()
         if not model_name:
-            messagebox.showinfo(
-                "Select and download a model",
-                "Choose a speech model and click Download Selected Model before starting a session.",
+            open_models = messagebox.askokcancel(
+                "Speech quality required",
+                "Start Listening needs one speech-quality model. "
+                "Open Models now and choose a quality?",
+                parent=self.root,
             )
+            if open_models and hasattr(self, "_show_page"):
+                self._show_page("Models")
             return
         if not is_model_downloaded(model_name):
-            messagebox.showinfo(
+            open_models = messagebox.askokcancel(
                 "Download required",
-                "The selected model is not downloaded yet. Click Download Selected Model first.",
+                "Start Listening needs the selected speech-quality model to be "
+                "downloaded first. Open Models now?",
+                parent=self.root,
             )
+            if open_models and hasattr(self, "_show_page"):
+                self._show_page("Models")
             return
         if (
             self.audio_source_var.get() == AUDIO_SOURCE_SYSTEM
@@ -936,7 +1022,7 @@ class TaglishTranscriberApp:
             if "PID " not in self.microphone_var.get():
                 messagebox.showwarning(
                     "Choose an application",
-                    "Choose a running Windows application before starting.",
+                    "Choose the exact running window or application before starting.",
                 )
                 return
         if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE:
@@ -971,12 +1057,27 @@ class TaglishTranscriberApp:
 
     def _prepare_session(self) -> None:
         try:
-            engine = WhisperEngine(
-                model_name=self.settings.model_name,
-                device_mode=self.settings.device_mode,
-                progress_callback=self._threadsafe_status,
-            )
-            engine.load()
+            engine = self.engine
+            if (
+                engine is None
+                or not engine.is_loaded
+                or engine.model_name != self.settings.model_name
+                or engine.device_mode != self.settings.device_mode
+                or engine.memory_saver != self.settings.memory_saver
+            ):
+                if engine is not None:
+                    engine.unload()
+                engine = WhisperEngine(
+                    model_name=self.settings.model_name,
+                    device_mode=self.settings.device_mode,
+                    progress_callback=self._threadsafe_status,
+                    memory_saver=self.settings.memory_saver,
+                )
+                engine.load()
+            else:
+                self._threadsafe_status(
+                    "Reusing the loaded speech model to avoid a second RAM copy…"
+                )
             vocabulary = VocabularyManager()
             skills = SkillLibrary()
             topic_context, topic_terms = self._topic_context_for_session()
@@ -1004,6 +1105,13 @@ class TaglishTranscriberApp:
                 context_prompt=topic_context,
                 live_noise_reduction=self.settings.live_noise_reduction,
                 application_audio_enabled=self.settings.application_audio_enabled,
+                microphone_listen_enabled=self.settings.microphone_listen_enabled,
+                microphone_monitor_output_label=(
+                    self.settings.microphone_monitor_output_label
+                    or detect_default_audio_output_label()
+                ),
+                smart_vad=self.settings.smart_vad,
+                memory_saver=self.settings.memory_saver,
             )
             session.start()
         except (ModelLoadError, RuntimeError, KeyError) as exc:
@@ -1034,9 +1142,15 @@ class TaglishTranscriberApp:
             if self.settings.live_noise_reduction
             else ""
         )
-        if self.settings.audio_source_mode == AUDIO_SOURCE_SYSTEM:
+        if self.settings.audio_source_mode == AUDIO_SOURCE_APPLICATION:
             self.activity_var.set(
-                "Livestream transcription is active. Keep the stream playing through the selected output."
+                "Selected-application transcription is active. Only the chosen "
+                "process tree should be captured; other applications are excluded."
+                + noise_note
+            )
+        elif self.settings.audio_source_mode == AUDIO_SOURCE_SYSTEM:
+            self.activity_var.set(
+                "Virtual/system audio transcription is active on this platform."
                 + noise_note
             )
         else:
@@ -1115,10 +1229,13 @@ class TaglishTranscriberApp:
             self.status_var.set("WAV ready")
             self.activity_var.set(
                 "Listening stopped. The original WAV and live transcript are safe. "
-                "Click Verify from WAV to run the separate full-recording accuracy pass."
+                "Click Verify from WAV before Memory Saver releases the speech model, "
+                "or start another session and it will reload automatically."
             )
+            self._schedule_engine_release()
 
     def _verify_wav_requested(self) -> None:
+        self._cancel_engine_release()
         if self.session is not None or self.model_loading or self.model_downloading or self.finalizing:
             return
 
@@ -1206,6 +1323,7 @@ class TaglishTranscriberApp:
             or "Final transcript, source recording, and review comments are ready."
         )
         self.notebook.select(1)
+        self._schedule_engine_release()
 
     def _finalization_failed(self, message: str) -> None:
         self.finalizing = False
@@ -1416,6 +1534,10 @@ class TaglishTranscriberApp:
 
         self.settings = self._collect_settings()
         self.settings.save()
+        self._cancel_engine_release()
+        if self.engine is not None:
+            self.engine.unload()
+            self.engine = None
         cleanup_stale_temp_files()
         self.root.destroy()
 

@@ -67,7 +67,7 @@ def application_audio_support() -> tuple[bool, str]:
             False,
             "The Windows selected-app audio helper has not been built or installed yet.",
         )
-    return True, "Windows selected-app audio is ready."
+    return True, "Selected-application process-tree audio is ready."
 
 
 def list_running_application_targets() -> list[ApplicationAudioTarget]:

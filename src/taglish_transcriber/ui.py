@@ -176,6 +176,12 @@ class _ModernBaseApp(_Controller):
         )
         self.language_var = tk.StringVar(value=self.settings.language_label)
         self.microphone_var = tk.StringVar(value=self.settings.microphone_label)
+        self.microphone_listen_var = tk.BooleanVar(
+            value=self.settings.microphone_listen_enabled
+        )
+        self.microphone_monitor_output_var = tk.StringVar(
+            value=self.settings.microphone_monitor_output_label
+        )
         self.application_audio_var = tk.StringVar(
             value=self.settings.application_audio_label
         )
@@ -188,6 +194,11 @@ class _ModernBaseApp(_Controller):
         self.live_noise_reduction_var = tk.BooleanVar(
             value=self.settings.live_noise_reduction
         )
+        self.smart_vad_var = tk.BooleanVar(value=self.settings.smart_vad)
+        self.memory_saver_var = tk.BooleanVar(
+            value=self.settings.memory_saver
+        )
+        self._engine_release_after_id = None
         self.noise_reduction_var = tk.BooleanVar(value=self.settings.noise_reduction)
         self.review_var = tk.BooleanVar(value=self.settings.grammar_diction_comments)
         self.live_appendix_var = tk.BooleanVar(value=self.settings.include_live_appendix)
@@ -331,7 +342,7 @@ class _ModernBaseApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.8.2",
+            text="Version 0.9.1",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=11, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -518,7 +529,7 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
         ).grid(row=2, column=0, sticky="w", padx=16, pady=(0, 6))
-        self.topic_combo = ctk.CTkComboBox(
+        self.topic_combo = WholeClickableDropdown(
             input_card,
             variable=self.topic_var,
             values=list(self.topic_manager.names),
@@ -527,12 +538,10 @@ class _ModernBaseApp(_Controller):
             height=38,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["border"],
             border_color=COLORS["border"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
+            border_width=1,
             text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
         )
         self.topic_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=(16, 8), pady=(0, 6))
         self.manage_topics_button = ctk.CTkButton(
@@ -797,7 +806,7 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
         ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 6))
-        self.topic_editor_combo = ctk.CTkComboBox(
+        self.topic_editor_combo = WholeClickableDropdown(
             editor,
             variable=self.topic_editor_profile_var,
             values=list(self.topic_manager.names),
@@ -806,12 +815,10 @@ class _ModernBaseApp(_Controller):
             height=40,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["border"],
             border_color=COLORS["border"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
+            border_width=1,
             text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
         )
         self.topic_editor_combo.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 14))
 
@@ -998,7 +1005,7 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=16, weight="bold"),
         ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 8))
-        self.model_combo = ctk.CTkComboBox(
+        self.model_combo = WholeClickableDropdown(
             choose_card,
             variable=self.model_var,
             values=list(self._hardware_model_selection_options()),
@@ -1007,12 +1014,10 @@ class _ModernBaseApp(_Controller):
             height=42,
             corner_radius=9,
             fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["border"],
             border_color=COLORS["border"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
+            border_width=1,
             text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=13),
         )
         self.model_combo.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 12))
@@ -1045,7 +1050,29 @@ class _ModernBaseApp(_Controller):
             text_color=("#FFFFFF", "#001219"),
             font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
         )
-        self.download_model_button.grid(row=4, column=0, sticky="w", padx=20, pady=(0, 20))
+        model_buttons = ctk.CTkFrame(choose_card, fg_color="transparent")
+        model_buttons.grid(row=4, column=0, sticky="w", padx=20, pady=(0, 20))
+        self.download_model_button.grid(
+            in_=model_buttons,
+            row=0,
+            column=0,
+            sticky="w",
+            padx=(0, 8),
+            pady=0,
+        )
+        self.release_model_button = ctk.CTkButton(
+            model_buttons,
+            text="Release Model from RAM",
+            command=self._release_model_from_ram_requested,
+            height=42,
+            corner_radius=9,
+            fg_color="transparent",
+            hover_color=COLORS["surface_raised"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+        )
+        self.release_model_button.grid(row=0, column=1, sticky="w")
 
         self.download_progress_frame = self._card(
             page, row=3, column=0, sticky="ew", padx=28, pady=(0, 14)
@@ -1180,7 +1207,59 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=11),
         ).grid(
-            row=3, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 18)
+            row=3, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 10)
+        )
+
+        self.smart_vad_switch = ctk.CTkSwitch(
+            session_card,
+            text="Smart Silero speech detection (recommended)",
+            variable=self.smart_vad_var,
+            progress_color=COLORS["accent"],
+            text_color=COLORS["text"],
+        )
+        self.smart_vad_switch.grid(
+            row=4, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 5)
+        )
+        ctk.CTkLabel(
+            session_card,
+            text=(
+                "Reuses Faster-Whisper's bundled offline Silero VAD to reject "
+                "clear silence before model inference, finish phrases sooner, "
+                "and reduce repeated or hallucinated silence text."
+            ),
+            wraplength=880,
+            justify="left",
+            anchor="w",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(
+            row=5, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 10)
+        )
+
+        self.memory_saver_switch = ctk.CTkSwitch(
+            session_card,
+            text="Memory Saver (recommended for portable use)",
+            variable=self.memory_saver_var,
+            progress_color=COLORS["accent"],
+            text_color=COLORS["text"],
+        )
+        self.memory_saver_switch.grid(
+            row=6, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 5)
+        )
+        ctk.CTkLabel(
+            session_card,
+            text=(
+                "Uses one inference worker, smaller queues, lighter live beam "
+                "search, model reuse, and automatic model release after idle. "
+                "The original recording and full WAV verification remain available."
+            ),
+            wraplength=880,
+            justify="left",
+            anchor="w",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(
+            row=7, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 18)
         )
 
         verify_card = self._card(page, row=2, column=0, sticky="ew", padx=28, pady=(0, 14))
@@ -1253,17 +1332,34 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text_secondary"],
         ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 20))
 
-    def _modern_labeled_combo(self, parent, column, label, variable, values):
+    def _modern_labeled_combo(
+        self,
+        parent,
+        column,
+        label,
+        variable,
+        values,
+    ):
         holder = ctk.CTkFrame(parent, fg_color="transparent")
-        holder.grid(row=1, column=column, sticky="ew", padx=(20 if column == 0 else 8, 20 if column == 2 else 8), pady=(0, 20))
+        holder.grid(
+            row=1,
+            column=column,
+            sticky="ew",
+            padx=(20 if column == 0 else 8, 20 if column == 2 else 8),
+            pady=(0, 20),
+        )
         holder.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             holder,
             text=label,
             text_color=COLORS["text_secondary"],
-            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=11,
+                weight="bold",
+            ),
         ).grid(row=0, column=0, sticky="w", pady=(0, 6))
-        combo = ctk.CTkComboBox(
+        combo = WholeClickableDropdown(
             holder,
             variable=variable,
             values=list(values),
@@ -1271,12 +1367,10 @@ class _ModernBaseApp(_Controller):
             height=40,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["border"],
             border_color=COLORS["border"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
+            border_width=1,
             text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
         )
         combo.grid(row=1, column=0, sticky="ew")
         return combo
@@ -1649,6 +1743,31 @@ class _ModernBaseApp(_Controller):
         settings.hardware_check_version = self.settings.hardware_check_version
         return settings
 
+    def _release_model_from_ram_requested(self) -> None:
+        if (
+            self.session is not None
+            or self.model_loading
+            or self.model_downloading
+            or self.finalizing
+        ):
+            messagebox.showinfo(
+                "Model is in use",
+                "Stop the active operation before releasing the speech model.",
+                parent=self.root,
+            )
+            return
+        self._cancel_engine_release()
+        if self.engine is None:
+            self.activity_var.set("No speech model is currently loaded in RAM.")
+            return
+        self.engine.unload()
+        self.engine = None
+        self.activity_var.set(
+            "The speech model was released from RAM. Downloaded model files "
+            "remain in the portable folder."
+        )
+        self._set_controls_for_idle()
+
     def _set_settings_state(self, state: str) -> None:
         for combo in (
             self.audio_source_combo,
@@ -1663,6 +1782,8 @@ class _ModernBaseApp(_Controller):
         switch_state = "normal" if state == "readonly" else "disabled"
         for switch in (
             self.live_noise_switch,
+            self.smart_vad_switch,
+            self.memory_saver_switch,
             self.noise_switch,
             self.review_switch,
             self.appendix_switch,
@@ -1677,19 +1798,63 @@ class _ModernBaseApp(_Controller):
             self.application_refresh_button.configure(state=enabled)
         if hasattr(self, "application_audio_switch"):
             self.application_audio_switch.configure(state=enabled)
+        if hasattr(self, "microphone_listen_switch"):
+            self.microphone_listen_switch.configure(state=enabled)
+        if hasattr(self, "microphone_monitor_output_dropdown"):
+            dropdown_state = "readonly" if enabled == "normal" else "disabled"
+            self.microphone_monitor_output_dropdown.configure(state=dropdown_state)
         self.manage_topics_button.configure(state=enabled)
         if hasattr(self, "recheck_pc_button"):
             self.recheck_pc_button.configure(state=enabled)
+        if hasattr(self, "release_model_button"):
+            self.release_model_button.configure(state=enabled)
 
     def _set_controls_for_idle(self) -> None:
         super()._set_controls_for_idle()
         model_name = self._selected_model_name()
         if not model_name:
+            self.start_button.configure(
+                state="normal",
+                text="Choose Speech Quality",
+            )
             return
         capability = self.hardware_assessment.capability(model_name)
         if capability.status == STATUS_UNAVAILABLE:
-            self.start_button.configure(state="disabled")
+            self.start_button.configure(
+                state="normal",
+                text="Choose a Lighter Model",
+            )
             self.download_model_button.configure(state="disabled")
+            return
+        if not is_model_downloaded(model_name):
+            self.start_button.configure(
+                state="normal",
+                text="Download Model to Start",
+            )
+        else:
+            self.start_button.configure(
+                state="normal",
+                text="Start Listening",
+            )
+
+    def _start_requested(self) -> None:
+        model_name = self._selected_model_name()
+        if model_name:
+            capability = self.hardware_assessment.capability(model_name)
+            if capability.status == STATUS_UNAVAILABLE:
+                messagebox.showwarning(
+                    "Choose a lighter speech quality",
+                    capability.summary
+                    or (
+                        "The selected speech quality is blocked because this "
+                        "computer does not meet its clear memory, storage, or "
+                        "architecture requirement."
+                    ),
+                    parent=self.root,
+                )
+                self._show_page("Models")
+                return
+        super()._start_requested()
 
     def _download_model_requested(self) -> None:
         if self.model_loading or self.model_downloading or self.finalizing or self.session is not None:

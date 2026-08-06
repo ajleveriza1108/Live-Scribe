@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.8.2**
+**Version 0.9.1**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -175,6 +175,141 @@ recheck.
 
 
 
+
+
+
+
+
+
+## v0.9.1 repository safety and continuous testing
+
+The source repository now has an automated preflight that blocks machine-specific runtime data, downloaded models, recordings, exports, and session databases from publication. Pushes and pull requests run the environment-safe Python 3.11 suite on Windows, Linux, and macOS. See `REPOSITORY_AUDIT.md` and `SECURITY.md`.
+
+## v0.9.0 selected-application and low-RAM core
+
+### Windows computer/livestream audio is application-specific
+
+On Windows, the normal computer/livestream source is now:
+
+```text
+Computer / livestream — choose application
+```
+
+The user must choose a running window or application. Live Scribe invokes
+Windows process-loopback in `includetree` mode, which captures the selected
+process and child processes while excluding unrelated applications. There is no
+automatic fallback to whole-system capture.
+
+The native helper still requires Windows build 20348 or newer. The repository
+workflow uploads the compiled helper as an artifact and can commit it into
+`engines/windows`. A local PowerShell builder is also included for computers
+with Visual Studio C++ Build Tools and NuGet.
+
+### Smart Silero VAD
+
+Live Scribe reuses Faster-Whisper's bundled offline Silero VAD before Whisper
+inference. Clear silence is rejected without loading Torch or downloading a
+second VAD model. This reduces unnecessary model calls, phrase-ending delay, and
+common silence hallucinations.
+
+### Memory Saver
+
+Memory Saver is enabled by default and provides:
+
+- one CTranslate2 model worker
+- limited CPU inference threads
+- small bounded audio, phrase, event, recorder, and monitor queues
+- lighter live beam search and token limits
+- model reuse between consecutive sessions
+- a manual Release Model from RAM button
+- automatic model release after idle
+- original WAV recording and full verification retained
+
+## v0.8.5 Windows source first-start repair
+
+The complete source archive does not include `.venv` or a prebuilt
+`LiveScribe.exe`. A Python virtual environment is machine-specific, and the EXE
+belongs to a separately built portable release.
+
+The Windows launcher now handles a new source folder automatically:
+
+1. It first checks for the packaged portable executable.
+2. It then checks for an existing `.venv`.
+3. When only source files are present, it runs
+   `scripts/source_setup_windows.ps1`.
+4. The setup locates Python 3.11, creates `.venv`, installs
+   `requirements-dev.txt`, and runs `app.py --self-test`.
+5. After successful setup, the launcher starts the app.
+6. Future launches reuse `.venv` and skip setup.
+
+The first source start requires an internet connection. A root-level
+`Start Live Scribe.bat` and a manual
+`launchers/setup_source_windows.bat` are included.
+
+## v0.8.4 responsive input controls
+
+### Stop Test no longer blocks the window
+
+Audio-device shutdown now runs on a background cleanup worker. The meter and
+button reset immediately, late driver callbacks are ignored, and Start
+Listening waits for cleanup before opening the same device for transcription.
+
+The monitor also aborts active input/output streams before closing them. This
+reduces delays caused by Windows audio drivers that take time to return from
+`stop()` or a loopback `record()` call.
+
+### Start Listening requirements are visible
+
+The idle button remains clickable instead of being silently disabled:
+
+- **Choose Speech Quality** — no speech model is selected
+- **Download Model to Start** — selected model is not installed
+- **Choose a Lighter Model** — hardware assessment clearly blocks the model
+- **Start Listening** — model and hardware requirements are ready
+
+Clicking an incomplete state explains the requirement and opens Models when
+appropriate.
+
+### Inactive devices are hidden
+
+Microphones and playback devices that fail the local backend availability check
+are no longer shown in customer-facing selectors. A clear placeholder is shown
+only when no usable device exists.
+
+### Output selector and full-control dropdowns
+
+The microphone-monitor section includes an **Output device** dropdown. The
+audio source, microphone, output, topic, model, language, processing device,
+sensitivity, and topic-editor selectors now open when any part of the control is
+clicked.
+
+## v0.8.3 selected microphone listening
+
+When **Microphone** is selected, the Input page now shows:
+
+```text
+Selected microphone monitoring
+[Listen to this microphone]
+[Playback through ▼]
+```
+
+The option is off by default. When enabled, Live Scribe copies the raw selected
+microphone signal to the chosen playback device while keeping transcription and
+WAV recording active. Playback uses a separate bounded queue and output worker,
+so a slow playback device cannot block microphone capture.
+
+Important behavior:
+
+- Use headphones to prevent echo or loud acoustic feedback.
+- The microphone sent to Faster-Whisper is unchanged.
+- The original WAV is unchanged.
+- The monitor can be toggled while transcription is running.
+- The playback output can be changed while transcription is running.
+- When idle, enabling the switch automatically starts the no-recording input
+  test so the user can hear the selected microphone immediately.
+- Disabling an automatically started monitor closes that preview without
+  stopping or changing a later transcription session.
+- Unavailable playback devices remain visible but disabled.
 
 ## v0.8.2 dropdown startup hotfix
 
@@ -578,7 +713,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-101 passed
+129 passed
 ```
 
 A real release still requires physical testing of:

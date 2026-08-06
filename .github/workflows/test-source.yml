@@ -1,0 +1,38 @@
+name: Test Live Scribe Source
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-source:
+    name: Python 3.11 • ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-22.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install Linux audio libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 portaudio19-dev
+      - name: Install source dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Validate repository hygiene
+        run: python scripts/repository_preflight.py
+      - name: Compile Python source
+        run: python -m compileall -q app.py src scripts
+      - name: Run environment-safe test suite
+        run: python -m pytest -q --ignore=tests/test_ui_handlers.py --ignore=tests/test_media_import.py

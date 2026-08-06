@@ -1,0 +1,29 @@
+LIVE SCRIBE — WINDOWS SOURCE START
+
+Double-click:
+
+    Start Live Scribe.bat
+
+For a newly extracted source folder, the launcher will:
+
+1. Find Python 3.11.
+2. Create .venv inside this Live Scribe folder.
+3. Install the source runtime dependencies.
+4. Run the built-in self-test.
+5. Start Live Scribe.
+
+The first start needs an internet connection and can take several
+minutes. Future starts use the completed local .venv and do not repeat
+dependency installation.
+
+Python 3.11 is required. When it is missing, install it with:
+
+    winget install --exact --id Python.Python.3.11
+
+A source ZIP does not include .venv or LiveScribe.exe. Those files are
+intentionally excluded because .venv is machine-specific and the EXE is
+produced separately by the portable build process.
+
+Manual source setup is also available:
+
+    launchers\setup_source_windows.bat

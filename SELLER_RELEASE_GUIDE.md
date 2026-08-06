@@ -172,3 +172,43 @@ Before publishing:
 - Confirm disabled microphones remain unselectable.
 - Change themes and confirm dropdown text remains synchronized.
 
+## v0.8.3 microphone monitor checks
+
+- Confirm Listen to this microphone defaults to off.
+- Use headphones before enabling it.
+- Confirm idle enable starts input preview without creating a WAV.
+- Start transcription and toggle monitoring off/on without stopping the session.
+- Change playback output during transcription.
+- Confirm the saved WAV contains only the original microphone capture.
+- Confirm unavailable output devices cannot be selected.
+- Test 44.1 kHz microphone to 48 kHz headphones resampling.
+
+## v0.8.5 Windows source startup validation
+
+- Extract the source ZIP into a new folder with no `.venv`.
+- Double-click `Start Live Scribe.bat`.
+- Confirm Python 3.11 is detected and `.venv` is created.
+- Confirm dependencies install and the self-test passes.
+- Confirm Live Scribe opens after setup.
+- Close and relaunch; confirm setup is skipped.
+- Test the missing-Python message on a clean Windows VM.
+- Keep source ZIP and prebuilt portable release clearly labeled as different
+  artifacts.
+
+## v0.9.0 validation
+
+- On Windows, confirm whole-computer audio is absent from the normal source list.
+- Select Chrome/Zoom/Teams and play unrelated audio in another app.
+- Confirm only the selected process tree is transcribed.
+- Switch selected applications during a running session.
+- Test Smart VAD with silence, music, fan noise, and quiet speech.
+- Compare RAM with Memory Saver on and off.
+- Confirm a second session reuses one model instance.
+- Confirm Release Model from RAM lowers process memory without deleting files.
+- Run the GitHub helper workflow and download its uploaded artifact.
+
+## v0.9.1 repository publication checks
+
+- Run `python scripts/repository_preflight.py`.
+- Confirm no hardware report, first-run marker, models, recordings, exports, or session databases are tracked.
+- Confirm source CI passes on Windows/Linux/macOS.

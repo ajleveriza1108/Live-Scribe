@@ -2,8 +2,10 @@
 setlocal EnableExtensions
 
 rem ============================================================
-rem Live Scribe portable launcher for Windows
-rem Keep this launcher with the complete Live Scribe folder.
+rem Live Scribe launcher for Windows
+rem - Runs a packaged portable build when present.
+rem - Runs an existing source .venv when present.
+rem - Prepares a new source folder automatically on first start.
 rem ============================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -48,9 +50,10 @@ set "PORTABLE_EXE=%APP_ROOT%\LiveScribe\LiveScribe.exe"
 set "ROOT_EXE=%APP_ROOT%\LiveScribe.exe"
 set "VENV_PYTHON=%APP_ROOT%\.venv\Scripts\python.exe"
 set "SOURCE_APP=%APP_ROOT%\app.py"
+set "SOURCE_SETUP=%APP_ROOT%\scripts\source_setup_windows.ps1"
 
 echo.
-echo Starting Live Scribe in portable mode...
+echo Starting Live Scribe...
 echo App folder: %APP_ROOT%
 echo.
 
@@ -72,15 +75,54 @@ if exist "%VENV_PYTHON%" if exist "%SOURCE_APP%" (
     goto :finished
 )
 
+if exist "%SOURCE_APP%" if exist "%SOURCE_SETUP%" (
+    echo This is a new Live Scribe source folder.
+    echo The local Python environment will be prepared once.
+    echo An internet connection is required for the first dependency install.
+    echo.
+    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass ^
+        -File "%SOURCE_SETUP%"
+    set "SETUP_EXIT=%ERRORLEVEL%"
+
+    if not "%SETUP_EXIT%"=="0" (
+        echo.
+        echo Live Scribe source setup did not complete.
+        echo.
+        if "%SETUP_EXIT%"=="2" (
+            echo Python 3.11 is required.
+            echo Install it with:
+            echo   winget install --exact --id Python.Python.3.11
+        ) else (
+            echo Check the messages above for the failed dependency.
+            echo Confirm that the internet connection is working.
+        )
+        echo.
+        pause
+        exit /b %SETUP_EXIT%
+    )
+
+    if exist "%VENV_PYTHON%" (
+        echo.
+        echo Starting Live Scribe with the prepared environment...
+        "%VENV_PYTHON%" "%SOURCE_APP%"
+        set "EXIT_CODE=%ERRORLEVEL%"
+        goto :finished
+    )
+)
+
 echo Live Scribe could not be started.
 echo.
-echo Keep the complete portable folder together. Do not copy only the EXE.
-echo Source mode requires:
-echo   %VENV_PYTHON%
-echo   %SOURCE_APP%
+echo The folder contains neither:
+echo   A packaged portable executable
+echo nor
+echo   A complete source project with its setup script
 echo.
-echo Portable mode requires:
+echo Expected portable file:
 echo   %PORTABLE_EXE%
+echo.
+echo Expected source files:
+echo   %SOURCE_APP%
+echo   %SOURCE_SETUP%
 echo.
 pause
 exit /b 1

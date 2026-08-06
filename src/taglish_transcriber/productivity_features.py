@@ -11,7 +11,12 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 import customtkinter as ctk
 
-from .audio import AudioInputMonitor, recover_rolling_recording
+from .audio import (
+    AudioInputMonitor,
+    detect_default_audio_output_label,
+    list_audio_outputs,
+    recover_rolling_recording,
+)
 from .caption_window import FloatingCaptionWindow
 from .config import (
     AUDIO_SOURCE_APPLICATION,
@@ -61,6 +66,10 @@ class ProductivityFeaturesMixin:
         self.audio_level_text_var: tk.StringVar | None = None
         self.storage_window = None
         self.input_monitor: AudioInputMonitor | None = None
+        self._input_test_auto_started_for_microphone_listen = False
+        self._input_test_stop_in_progress = False
+        self._input_test_stop_callbacks: list[object] = []
+        self._input_test_generation = 0
         super().__init__()
 
         self.caption_window = FloatingCaptionWindow(
@@ -178,6 +187,95 @@ class ProductivityFeaturesMixin:
         )
         self.input_test_button.grid(row=0, column=3, padx=(8, 12), pady=12)
 
+        self.microphone_monitor_frame = ctk.CTkFrame(
+            self.input_card,
+            corner_radius=9,
+            fg_color=self._color("surface_raised"),
+            border_color=self._color("border"),
+            border_width=1,
+        )
+        self.microphone_monitor_frame.grid(
+            row=6,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+            padx=16,
+            pady=(0, 10),
+        )
+        self.microphone_monitor_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            self.microphone_monitor_frame,
+            text="Selected microphone monitoring",
+            text_color=self._color("text"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=12,
+                weight="bold",
+            ),
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+        ctk.CTkLabel(
+            self.microphone_monitor_frame,
+            text=(
+                "Hear the selected microphone through the chosen playback device. "
+                "Use headphones to prevent echo or feedback."
+            ),
+            wraplength=620,
+            justify="left",
+            anchor="w",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(
+            row=0,
+            column=1,
+            columnspan=2,
+            sticky="ew",
+            padx=(8, 12),
+            pady=(10, 4),
+        )
+        self.microphone_listen_switch = ctk.CTkSwitch(
+            self.microphone_monitor_frame,
+            text="Listen to this microphone",
+            variable=self.microphone_listen_var,
+            command=self._on_microphone_listen_toggle,
+            progress_color=self._color("success"),
+            text_color=self._color("text"),
+        )
+        self.microphone_listen_switch.grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=12,
+            pady=(2, 10),
+        )
+        self.microphone_monitor_output_dropdown = WholeClickableDropdown(
+            self.microphone_monitor_frame,
+            variable=self.microphone_monitor_output_var,
+            values=["System default output"],
+            command=self._on_microphone_monitor_output_selected,
+            state="readonly",
+            height=36,
+            corner_radius=8,
+            fg_color=self._color("surface_alt"),
+            hover_color=self._color("border"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.microphone_monitor_output_dropdown.grid(
+            row=1,
+            column=1,
+            sticky="ew",
+            padx=8,
+            pady=(2, 10),
+        )
+        ctk.CTkLabel(
+            self.microphone_monitor_frame,
+            text="Output device",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=1, column=2, sticky="w", padx=(0, 12), pady=(2, 10))
+        self.microphone_monitor_frame.grid_remove()
+
         self.application_audio_frame = ctk.CTkFrame(
             self.input_card,
             corner_radius=9,
@@ -196,7 +294,7 @@ class ProductivityFeaturesMixin:
         self.application_audio_frame.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             self.application_audio_frame,
-            text="Application to transcribe",
+            text="Window or application to transcribe",
             text_color=self._color("text_secondary"),
             font=ctk.CTkFont(
                 family=self.font_family,
@@ -228,7 +326,7 @@ class ProductivityFeaturesMixin:
         )
         self.application_audio_switch = ctk.CTkSwitch(
             self.application_audio_frame,
-            text="Listen to this app",
+            text="Capture only this application",
             variable=self.application_audio_enabled_var,
             command=self._on_application_audio_toggle,
             progress_color=self._color("success"),
@@ -391,56 +489,315 @@ class ProductivityFeaturesMixin:
         )
 
     def _toggle_input_test(self) -> None:
+        if self.input_monitor is not None or self._input_test_stop_in_progress:
+            self._stop_input_test(manual=True, restore_idle=True)
+            return
+        self._start_input_test(auto_started_for_microphone_listen=False)
+
+    def _start_input_test(
+        self,
+        *,
+        auto_started_for_microphone_listen: bool,
+    ) -> bool:
         if self.input_monitor is not None:
-            self._stop_input_test()
-            return
-        if self.session is not None or self.model_loading or self.model_downloading or self.finalizing:
-            return
+            return True
+        if self._input_test_stop_in_progress:
+            self.activity_var.set(
+                "Finishing the previous input test. Try again in a moment."
+            )
+            return False
+        if (
+            self.session is not None
+            or self.model_loading
+            or self.model_downloading
+            or self.finalizing
+        ):
+            return False
+
+        self._input_test_generation += 1
+        generation = self._input_test_generation
         try:
             self.input_monitor = AudioInputMonitor(
                 source_mode=self.audio_source_var.get(),
                 input_label=self.microphone_var.get(),
-                microphone_index=(
-                    self._microphone_index_for_test()
-                ),
+                microphone_index=self._microphone_index_for_test(),
                 application_enabled=self.application_audio_enabled_var.get(),
-                event_callback=self._threadsafe_input_test_level,
+                event_callback=(
+                    lambda payload, token=generation:
+                    self._threadsafe_input_test_level(token, payload)
+                ),
+                microphone_monitor_enabled=(
+                    self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                    and self.microphone_listen_var.get()
+                ),
+                microphone_monitor_output_label=(
+                    self.microphone_monitor_output_var.get()
+                    or detect_default_audio_output_label()
+                ),
             )
             self.input_monitor.start()
         except Exception as exc:
             self.input_monitor = None
+            self._input_test_auto_started_for_microphone_listen = False
+            if auto_started_for_microphone_listen:
+                self.microphone_listen_var.set(False)
+                self.settings.microphone_listen_enabled = False
+                self.settings.save()
             messagebox.showwarning(
                 "Input test could not start",
                 str(exc).strip() or "The selected input could not be opened.",
                 parent=self.root,
             )
-            return
-        self.input_test_button.configure(text="Stop Test")
-        self.audio_level_text_var.set("Listening for sound")
-        self.activity_var.set(
-            "Input test is active. This does not start transcription or save audio."
+            return False
+
+        self._input_test_auto_started_for_microphone_listen = (
+            auto_started_for_microphone_listen
         )
+        self.input_test_button.configure(text="Stop Test", state="normal")
+        self.audio_level_text_var.set("Listening for sound")
+        if (
+            self.microphone_listen_var.get()
+            and self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+        ):
+            self.activity_var.set(
+                "Microphone listening is active. Use headphones to avoid "
+                "feedback. This does not start transcription or save audio."
+            )
+        else:
+            self.activity_var.set(
+                "Input test is active. This does not start transcription or "
+                "save audio."
+            )
+        return True
 
     def _microphone_index_for_test(self):
         from .audio import parse_microphone_index
         from .config import AUDIO_SOURCE_MICROPHONE
+
         if self.audio_source_var.get() != AUDIO_SOURCE_MICROPHONE:
             return None
         return parse_microphone_index(self.microphone_var.get())
 
-    def _threadsafe_input_test_level(self, payload: dict) -> None:
-        self.root.after(0, self._apply_audio_level, payload)
+    def _threadsafe_input_test_level(
+        self,
+        generation: int,
+        payload: dict,
+    ) -> None:
+        try:
+            self.root.after(
+                0,
+                self._apply_current_input_test_level,
+                generation,
+                payload,
+            )
+        except Exception:
+            pass
 
-    def _stop_input_test(self) -> None:
+    def _apply_current_input_test_level(
+        self,
+        generation: int,
+        payload: dict,
+    ) -> None:
+        if (
+            generation != self._input_test_generation
+            or self.input_monitor is None
+            or self._input_test_stop_in_progress
+        ):
+            return
+        self._apply_audio_level(payload)
+
+    def _stop_input_test(
+        self,
+        *,
+        on_stopped=None,
+        manual: bool = False,
+        restore_idle: bool = True,
+    ) -> None:
+        """Release test audio in the background so Tk remains responsive."""
+        if on_stopped is not None:
+            self._input_test_stop_callbacks.append(on_stopped)
+
+        if manual and self._input_test_auto_started_for_microphone_listen:
+            self.microphone_listen_var.set(False)
+            self.settings.microphone_listen_enabled = False
+            self.settings.save()
+
         monitor = self.input_monitor
         self.input_monitor = None
-        if monitor is not None:
-            monitor.stop()
+        self._input_test_auto_started_for_microphone_listen = False
+        self._input_test_generation += 1
+
         if hasattr(self, "input_test_button"):
-            self.input_test_button.configure(text="Test Input")
+            self.input_test_button.configure(text="Stopping…", state="disabled")
+        if self.session is None and self.audio_level_var is not None:
+            self.audio_level_var.set(0.0)
+            self.audio_level_text_var.set("Stopping input test…")
+
+        if monitor is None:
+            if not self._input_test_stop_in_progress:
+                self.root.after(0, self._finish_input_test_stop, restore_idle)
+            return
+        if self._input_test_stop_in_progress:
+            return
+
+        self._input_test_stop_in_progress = True
+        self.activity_var.set(
+            "Releasing the audio device in the background. "
+            "The window remains responsive."
+        )
+
+        def cleanup() -> None:
+            try:
+                monitor.stop()
+            finally:
+                try:
+                    self.root.after(
+                        0,
+                        self._finish_input_test_stop,
+                        restore_idle,
+                    )
+                except Exception:
+                    pass
+
+        threading.Thread(
+            target=cleanup,
+            name="input-test-cleanup",
+            daemon=True,
+        ).start()
+
+    def _finish_input_test_stop(self, restore_idle: bool = True) -> None:
+        self._input_test_stop_in_progress = False
+        if hasattr(self, "input_test_button"):
+            self.input_test_button.configure(text="Test Input", state="normal")
         if self.session is None and self.audio_level_var is not None:
             self.audio_level_var.set(0.0)
             self.audio_level_text_var.set("Waiting for audio")
+
+        callbacks = list(self._input_test_stop_callbacks)
+        self._input_test_stop_callbacks.clear()
+
+        if (
+            restore_idle
+            and self.session is None
+            and not self.model_loading
+            and not self.model_downloading
+            and not self.finalizing
+        ):
+            self._set_controls_for_idle()
+
+        if not callbacks:
+            self.activity_var.set(
+                "Input test stopped. The selected audio device is available "
+                "for transcription."
+            )
+
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception as exc:
+                self.activity_var.set(
+                    "The input test stopped, but the next action could not "
+                    f"continue: {str(exc).strip() or 'unknown error'}"
+                )
+
+    def _on_microphone_listen_toggle(self) -> None:
+        enabled = bool(self.microphone_listen_var.get())
+        if self.audio_source_var.get() != AUDIO_SOURCE_MICROPHONE:
+            self.microphone_listen_var.set(False)
+            return
+
+        self.settings.microphone_listen_enabled = enabled
+        self.settings.microphone_monitor_output_label = (
+            self.microphone_monitor_output_var.get()
+        )
+        self.settings.save()
+
+        if self.session is not None:
+            result = self.session.set_microphone_monitor_enabled(enabled)
+            if enabled and not result:
+                self.microphone_listen_var.set(False)
+                self.settings.microphone_listen_enabled = False
+                self.settings.save()
+                return
+        elif self.input_monitor is not None:
+            result = self.input_monitor.set_microphone_monitor_enabled(enabled)
+            if enabled and not result:
+                self.microphone_listen_var.set(False)
+                self.settings.microphone_listen_enabled = False
+                self.settings.save()
+                return
+            if not enabled and self._input_test_auto_started_for_microphone_listen:
+                self._stop_input_test(restore_idle=True)
+        elif enabled:
+            if self._input_test_stop_in_progress:
+                self._input_test_stop_callbacks.append(
+                    lambda: self._start_input_test(
+                        auto_started_for_microphone_listen=True
+                    )
+                )
+                return
+            if not self._start_input_test(
+                auto_started_for_microphone_listen=True
+            ):
+                return
+
+        self.activity_var.set(
+            "Listen to this microphone is on. Use headphones to prevent "
+            "echo or feedback."
+            if enabled
+            else "Listen to this microphone is off. Transcription and "
+            "recording are unchanged."
+        )
+
+    def _on_microphone_monitor_output_selected(
+        self,
+        value: str | None = None,
+    ) -> None:
+        selected = value or self.microphone_monitor_output_var.get()
+        previous = self.settings.microphone_monitor_output_label
+        self.microphone_monitor_output_var.set(selected)
+
+        result = True
+        if (
+            self.session is not None
+            and self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+        ):
+            result = self.session.set_microphone_monitor_output(selected)
+        elif (
+            self.input_monitor is not None
+            and self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+        ):
+            result = self.input_monitor.set_microphone_monitor_output(selected)
+
+        if not result:
+            fallback = previous or detect_default_audio_output_label()
+            self.microphone_monitor_output_var.set(fallback)
+            return
+
+        self.settings.microphone_monitor_output_label = selected
+        self.settings.save()
+        self.activity_var.set(f"Microphone monitoring output: {selected}")
+
+    def _restart_microphone_monitor_preview(self) -> None:
+        if self.session is not None:
+            return
+
+        def restart() -> None:
+            if (
+                self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                and self.microphone_listen_var.get()
+            ):
+                self._start_input_test(
+                    auto_started_for_microphone_listen=True
+                )
+
+        if self.input_monitor is not None or self._input_test_stop_in_progress:
+            self._stop_input_test(
+                on_stopped=restart,
+                restore_idle=False,
+            )
+        else:
+            self.root.after(80, restart)
 
 
     def _color(self, key: str):
@@ -695,6 +1052,11 @@ class ProductivityFeaturesMixin:
 
     def _set_controls_for_idle(self) -> None:
         super()._set_controls_for_idle()
+        if self._input_test_stop_in_progress:
+            self.start_button.configure(
+                state="disabled",
+                text="Finishing Input Test…",
+            )
         if hasattr(self, "pause_button"):
             self.pause_button.configure(state="disabled", text="Pause")
         if hasattr(self, "session_title_entry"):
@@ -733,7 +1095,22 @@ class ProductivityFeaturesMixin:
                 )
 
         if hasattr(self, "input_test_button"):
-            self.input_test_button.configure(state="normal")
+            self.input_test_button.configure(
+                state=(
+                    "disabled"
+                    if self._input_test_stop_in_progress
+                    else "normal"
+                ),
+                text=(
+                    "Stopping…"
+                    if self._input_test_stop_in_progress
+                    else (
+                        "Stop Test"
+                        if self.input_monitor is not None
+                        else "Test Input"
+                    )
+                ),
+            )
         if hasattr(self, "summary_button"):
             self.summary_button.configure(
                 state="normal" if self.document.entries else "disabled"
@@ -742,12 +1119,28 @@ class ProductivityFeaturesMixin:
             self.application_audio_switch.configure(state="normal")
         if hasattr(self, "application_refresh_button"):
             self.application_refresh_button.configure(state="normal")
+        if hasattr(self, "microphone_listen_switch"):
+            mic_state = (
+                "normal"
+                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                else "disabled"
+            )
+            self.microphone_listen_switch.configure(state=mic_state)
+        if hasattr(self, "microphone_monitor_output_dropdown"):
+            output_state = (
+                "readonly"
+                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                else "disabled"
+            )
+            self.microphone_monitor_output_dropdown.configure(state=output_state)
 
     def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
         super()._refresh_audio_inputs(auto_select=auto_select)
         if not hasattr(self, "application_audio_dropdown"):
             return
-        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+
+        source_mode = self.audio_source_var.get()
+        if source_mode == AUDIO_SOURCE_APPLICATION:
             from .application_audio import (
                 application_audio_support,
                 list_running_application_targets,
@@ -779,14 +1172,61 @@ class ProductivityFeaturesMixin:
                 self.application_audio_var.set(selected)
                 self.microphone_var.set(selected)
             self.application_audio_frame.grid()
+            self.microphone_monitor_frame.grid_remove()
+        elif source_mode == AUDIO_SOURCE_MICROPHONE:
+            outputs = [
+                output
+                for output in list_audio_outputs()
+                if output.available
+            ]
+            output_labels = [output.label for output in outputs]
+            disabled_outputs = []
+            available_outputs = list(output_labels)
+            if not output_labels:
+                output_labels = ["No available playback device detected"]
+                disabled_outputs = list(output_labels)
+                available_outputs = []
+            selected_output = self.microphone_monitor_output_var.get()
+            if (
+                selected_output not in output_labels
+                or selected_output in disabled_outputs
+            ):
+                selected_output = (
+                    detect_default_audio_output_label()
+                    if available_outputs
+                    else output_labels[0]
+                )
+            self.microphone_monitor_output_var.set(selected_output)
+            self.settings.microphone_monitor_output_label = selected_output
+            self.microphone_monitor_output_dropdown.configure(
+                values=output_labels,
+                disabled_values=disabled_outputs,
+            )
+            self.microphone_monitor_frame.grid()
+            self.application_audio_frame.grid_remove()
+            if (
+                self.microphone_listen_var.get()
+                and self.session is None
+                and self.input_monitor is None
+            ):
+                self.root.after(120, self._restart_microphone_monitor_preview)
         else:
             self.application_audio_frame.grid_remove()
+            self.microphone_monitor_frame.grid_remove()
 
     # ------------------------------------------------------------------
     # Live session, pause, audio meter, recovery
     # ------------------------------------------------------------------
     def _start_requested(self) -> None:
-        self._stop_input_test()
+        if self.input_monitor is not None or self._input_test_stop_in_progress:
+            self._stop_input_test(
+                on_stopped=self._continue_start_requested,
+                restore_idle=False,
+            )
+            return
+        self._continue_start_requested()
+
+    def _continue_start_requested(self) -> None:
         if self.session_title_var is not None:
             title = " ".join(self.session_title_var.get().strip().split())
         else:
@@ -863,6 +1303,11 @@ class ProductivityFeaturesMixin:
             self.recovery_manager.clear()
             self._refresh_editor()
             self._refresh_session_library()
+            if (
+                self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                and self.microphone_listen_var.get()
+            ):
+                self.root.after(150, self._restart_microphone_monitor_preview)
 
     def _apply_audio_level(self, payload: dict) -> None:
         if self.audio_level_var is None or self.audio_level_text_var is None:
@@ -1063,6 +1508,7 @@ class ProductivityFeaturesMixin:
                     model_name=model_name,
                     device_mode=self.device_var.get(),
                     progress_callback=self._threadsafe_status,
+                    memory_saver=self.memory_saver_var.get(),
                 )
                 engine.load()
 
@@ -1105,6 +1551,7 @@ class ProductivityFeaturesMixin:
             "Use Transcript editor to correct text, add speakers, play timestamps, and mark important moments."
         )
         self.notebook.select("Transcript editor")
+        self._schedule_engine_release()
 
     def _recorded_file_failed(self, message: str) -> None:
         self.finalizing = False
@@ -1454,6 +1901,10 @@ class ProductivityFeaturesMixin:
             self.input_test_button.configure(state="disabled")
         if hasattr(self, "summary_button"):
             self.summary_button.configure(state="disabled")
+        if hasattr(self, "microphone_listen_switch"):
+            self.microphone_listen_switch.configure(state="disabled")
+        if hasattr(self, "microphone_monitor_output_dropdown"):
+            self.microphone_monitor_output_dropdown.configure(state="disabled")
 
     def _set_controls_for_listening(self) -> None:
         self._stop_input_test()
@@ -1476,6 +1927,20 @@ class ProductivityFeaturesMixin:
                 else "disabled"
             )
             self.application_audio_dropdown.configure(state=state)
+        if hasattr(self, "microphone_listen_switch"):
+            mic_state = (
+                "normal"
+                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                else "disabled"
+            )
+            self.microphone_listen_switch.configure(state=mic_state)
+        if hasattr(self, "microphone_monitor_output_dropdown"):
+            output_state = (
+                "readonly"
+                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                else "disabled"
+            )
+            self.microphone_monitor_output_dropdown.configure(state=output_state)
 
     def _set_controls_for_finalizing(self) -> None:
         self._stop_input_test()
@@ -1484,6 +1949,10 @@ class ProductivityFeaturesMixin:
             self.input_test_button.configure(state="disabled")
         if hasattr(self, "summary_button"):
             self.summary_button.configure(state="disabled")
+        if hasattr(self, "microphone_listen_switch"):
+            self.microphone_listen_switch.configure(state="disabled")
+        if hasattr(self, "microphone_monitor_output_dropdown"):
+            self.microphone_monitor_output_dropdown.configure(state="disabled")
 
     # ------------------------------------------------------------------
     # Storage manager
@@ -1634,8 +2103,22 @@ class ProductivityFeaturesMixin:
     # Safe close
     # ------------------------------------------------------------------
     def _on_close(self) -> None:
-        self._stop_input_test()
-        if not (self.model_downloading or self.model_loading or self.finalizing or self.session is not None):
+        if self.input_monitor is not None or self._input_test_stop_in_progress:
+            self.activity_var.set("Closing the input test before exiting…")
+            self._stop_input_test(
+                on_stopped=self._finish_productivity_close,
+                restore_idle=False,
+            )
+            return
+        self._finish_productivity_close()
+
+    def _finish_productivity_close(self) -> None:
+        if not (
+            self.model_downloading
+            or self.model_loading
+            or self.finalizing
+            or self.session is not None
+        ):
             self._persist_current_document()
             if self.caption_window is not None:
                 self.caption_window.destroy()

@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-windows-app-audio-helper.yml"
+      - "src/taglish_transcriber/application_audio.py"
+      - "scripts/build_windows_app_audio_helper.ps1"
 
 permissions:
   contents: write
@@ -67,6 +69,14 @@ jobs:
           New-Item "engines/windows" -ItemType Directory -Force | Out-Null
           Copy-Item $exe.FullName `
             "engines/windows/LiveScribeApplicationLoopback.exe" -Force
+
+
+      - name: Upload helper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveScribeApplicationLoopback-x64
+          path: engines/windows/LiveScribeApplicationLoopback.exe
+          if-no-files-found: error
 
       - name: Commit helper to this repository
         shell: pwsh

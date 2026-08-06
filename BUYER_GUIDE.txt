@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.8.2 — BUYER GUIDE
+LIVE SCRIBE v0.9.1 — BUYER GUIDE
 
 WHAT LIVE SCRIBE DOES
 ---------------------
@@ -83,6 +83,33 @@ Use live assistance only when the interview rules allow it. Preparation and
 mock practice are the safest primary uses.
 
 
+
+RESPONSIVE INPUT CONTROLS
+-------------------------
+Stop Test releases the audio device in the background so the main window stays
+responsive. Start Listening waits until that cleanup is complete.
+
+Start Listening remains clickable while idle. Its label tells you whether to
+choose a speech quality, download the selected model, choose a lighter model,
+or begin listening.
+
+Inactive microphones and playback outputs are hidden. The microphone-monitor
+panel includes an Output device selector. Click anywhere on a main dropdown to
+open it; clicking only the arrow is no longer required.
+
+
+SELECTED APPLICATION AND MEMORY SAVER
+-------------------------------------
+On Windows, computer/livestream transcription requires choosing one running
+window or application. Live Scribe captures that process tree and excludes
+unrelated application audio. It does not silently fall back to whole-computer
+recording.
+
+Smart Silero speech detection and Memory Saver are enabled by default. They
+reduce silence processing, queue memory, duplicate model loading, and idle RAM.
+The Models page includes Release Model from RAM. Downloaded model files remain
+on the portable drive.
+
 INPUT AND TRANSCRIPT TOOLS
 --------------------------
 Test Input displays a live sound bar without starting transcription or saving
@@ -102,6 +129,18 @@ sounds can continue playing without being included in the selected-app capture.
 
 The selected-app option remains disabled until the repository's Windows helper
 workflow has built and installed the native helper.
+
+
+LISTEN TO THE SELECTED MICROPHONE
+---------------------------------
+Choose Microphone, then use Listen to this microphone. Select where the sound
+should play under Playback through.
+
+The switch is off by default. Use headphones before turning it on; playing the
+microphone through speakers can create an echo or loud feedback loop.
+
+The switch and playback output can be changed while transcription continues.
+The original WAV and the audio sent to transcription are not modified.
 
 LIVE SESSION
 ------------

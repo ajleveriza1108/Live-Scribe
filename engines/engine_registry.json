@@ -7,7 +7,15 @@
       "bundled_runtime": true,
       "model_bundled": false,
       "status": "active",
-      "purpose": "Default live and full-WAV English, Tagalog, and Taglish transcription"
+      "purpose": "Default low-RAM live and full-WAV multilingual transcription; also supplies the bundled Silero ONNX VAD"
+    },
+    {
+      "id": "silero-vad-via-faster-whisper",
+      "role": "core_voice_activity_detection",
+      "bundled_runtime": true,
+      "model_bundled": true,
+      "status": "active",
+      "purpose": "Reject silence before Whisper inference, shorten phrase completion, and reduce silence hallucinations without adding Torch"
     },
     {
       "id": "numpy-stationary-noise-reducer",
@@ -40,6 +48,22 @@
       "model_bundled": false,
       "status": "researched_optional",
       "purpose": "Possible quantized low-storage edition for future releases"
+    },
+    {
+      "id": "llama-cpp",
+      "role": "optional_local_llm_runtime",
+      "bundled_runtime": false,
+      "model_bundled": false,
+      "status": "foundation_next",
+      "purpose": "Managed offline interview answers, summaries, minutes, and transcript Q&A"
+    },
+    {
+      "id": "sherpa-onnx",
+      "role": "optional_speaker_and_punctuation_pack",
+      "bundled_runtime": false,
+      "model_bundled": false,
+      "status": "planned",
+      "purpose": "Portable diarization, punctuation, speaker enrollment, and local TTS"
     }
   ]
 }

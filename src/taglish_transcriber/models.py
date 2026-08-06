@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import gc
 import os
 import re
 import shutil
@@ -20,6 +21,7 @@ from .config import (
     model_size_label,
 )
 from .paths import MODEL_DIR, ensure_app_directories
+from .resource_policy import resource_policy
 
 
 MODEL_REQUIRED_FILES = ("config.json", "model.bin", "tokenizer.json")
@@ -529,7 +531,7 @@ def download_model_once(
             "to the internet and click Download Selected Model again to resume."
         )
 
-    (target / ".download-complete").write_text("0.8.2", encoding="utf-8")
+    (target / ".download-complete").write_text("0.9.1", encoding="utf-8")
     final_bytes = _local_downloaded_bytes(target)
     tracker.emit(
         phase="complete",
@@ -559,10 +561,13 @@ class WhisperEngine:
         model_name: str,
         device_mode: str = "Auto",
         progress_callback: Callable[[str], None] | None = None,
+        memory_saver: bool = True,
     ) -> None:
         self.model_name = model_name
         self.device_mode = device_mode
         self.progress_callback = progress_callback
+        self.memory_saver = bool(memory_saver)
+        self.policy = resource_policy(self.memory_saver)
         self._model: Any = None
         self.device = "cpu"
         self.compute_type = "int8"
@@ -617,11 +622,17 @@ class WhisperEngine:
         self._notify("Loading the downloaded model from the portable folder…")
 
         try:
+            load_kwargs: dict[str, Any] = {
+                "device": self.device,
+                "compute_type": self.compute_type,
+                "local_files_only": True,
+                "num_workers": self.policy.model_workers,
+            }
+            if self.device == "cpu":
+                load_kwargs["cpu_threads"] = self.policy.cpu_threads
             self._model = WhisperModel(
                 str(model_path),
-                device=self.device,
-                compute_type=self.compute_type,
-                local_files_only=True,
+                **load_kwargs,
             )
         except Exception as exc:
             message = str(exc).strip()
@@ -675,8 +686,8 @@ class WhisperEngine:
         audio = np.asarray(audio, dtype=np.float32).reshape(-1)
         kwargs: dict[str, Any] = {
             "task": "transcribe",
-            "beam_size": 3,
-            "best_of": 3,
+            "beam_size": self.policy.live_beam_size,
+            "best_of": self.policy.live_beam_size,
             "temperature": 0.0,
             "condition_on_previous_text": False,
             "vad_filter": True,
@@ -685,6 +696,9 @@ class WhisperEngine:
                 "speech_pad_ms": 180,
             },
             "word_timestamps": False,
+            "max_new_tokens": self.policy.live_max_new_tokens,
+            "repetition_penalty": 1.05,
+            "no_repeat_ngram_size": 3,
             "initial_prompt": compose_initial_prompt(language_label, context_prompt),
         }
         if language_code:
@@ -710,8 +724,8 @@ class WhisperEngine:
 
         kwargs: dict[str, Any] = {
             "task": "transcribe",
-            "beam_size": 5,
-            "best_of": 5,
+            "beam_size": self.policy.final_beam_size,
+            "best_of": self.policy.final_beam_size,
             "patience": 1.2,
             "temperature": (0.0, 0.2, 0.4),
             "condition_on_previous_text": True,
@@ -760,6 +774,20 @@ class WhisperEngine:
                 "The audio could not be transcribed. "
                 f"Details: {message or 'unknown transcription error'}"
             ) from exc
+
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._model is not None
+
+    def unload(self) -> None:
+        """Release the CTranslate2 model and collect Python-side buffers."""
+        model = self._model
+        self._model = None
+        if model is not None:
+            del model
+        gc.collect()
+
 
 
 def replace_segment_text(segment: TranscriptSegment, text: str) -> TranscriptSegment:

@@ -255,3 +255,42 @@ finishes.
 `_sync_text()` also calls the base implementation directly, removing the
 previous `_sync_text -> configure -> _sync_text` recursion.
 
+## v0.8.3 microphone playback monitor
+
+`AudioOutputInfo` and output enumeration expose available playback devices.
+`MicrophoneOutputMonitor` accepts copies of raw microphone blocks through a
+bounded queue, resamples in a worker thread, and writes to a selected
+sounddevice OutputStream. Capture, WAV writing, and transcription never wait for
+monitor playback.
+
+`MicrophoneCapture` and `AudioInputMonitor` support live monitor enable/output
+changes. The UI persists an off-by-default setting, exposes a headphone warning,
+and automatically starts an idle no-recording preview when listening is enabled.
+
+## v0.8.5 Windows source bootstrap
+
+`launchers/start_windows.bat` distinguishes packaged portable mode from source
+mode. When `app.py` exists but `.venv\Scripts\python.exe` does not, it invokes
+`scripts/source_setup_windows.ps1`.
+
+The source setup requires Python 3.11, creates a local `.venv`, installs
+`requirements-dev.txt`, runs the self-test, and returns control to the launcher.
+The environment is retained inside the source folder for subsequent starts.
+
+## v0.9.0 selected-app and low-RAM architecture
+
+Windows `AUDIO_SOURCE_OPTIONS` contains microphone and selected-application
+process-loopback only. Legacy whole-system loopback remains a non-Windows
+virtual/system source.
+
+`SmartVoiceGate` lazily imports `faster_whisper.vad`, which already supplies
+Silero ONNX in the Faster-Whisper dependency. `ResourcePolicy` controls queue
+bounds, model workers, CPU threads, decoding limits, phrase timing, and idle
+release delay.
+
+A compatible loaded `WhisperEngine` is reused between sessions. Memory Saver
+releases it after idle or through the Models-page button.
+
+## v0.9.1 repository publication safety
+
+Repository preflight rejects runtime hardware reports, first-run markers, session databases, downloaded models, recordings, exports, and inconsistent version metadata. Source CI runs on Windows, Ubuntu, and macOS.

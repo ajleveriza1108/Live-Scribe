@@ -20,6 +20,7 @@ from .application_audio import (
     parse_application_pid,
 )
 from .paths import RECORDING_IN_PROGRESS_DIR, TEMP_DIR
+from .resource_policy import resource_policy
 
 TARGET_SAMPLE_RATE = 16_000
 SYSTEM_AUDIO_SAMPLE_RATE = 48_000
@@ -52,6 +53,23 @@ class MicrophoneInfo:
     @property
     def label(self) -> str:
         default_suffix = " (System default)" if self.is_default else ""
+        availability_suffix = " — Unavailable" if not self.available else ""
+        return f"{self.index}: {self.name}{default_suffix}{availability_suffix}"
+
+
+@dataclass(frozen=True, slots=True)
+class AudioOutputInfo:
+    index: int
+    name: str
+    sample_rate: float
+    max_output_channels: int
+    is_default: bool = False
+    available: bool = True
+    unavailable_reason: str = ""
+
+    @property
+    def label(self) -> str:
+        default_suffix = " (System default output)" if self.is_default else ""
         availability_suffix = " — Unavailable" if not self.available else ""
         return f"{self.index}: {self.name}{default_suffix}{availability_suffix}"
 
@@ -155,6 +173,102 @@ def detect_default_microphone_label() -> str:
 
 def parse_microphone_index(label: str) -> int | None:
     if label == "Default input" or ":" not in label:
+        return None
+    prefix = label.split(":", 1)[0].strip()
+    try:
+        return int(prefix)
+    except ValueError:
+        return None
+
+
+def _default_output_index(sd) -> int | None:
+    try:
+        default = sd.default.device
+        if isinstance(default, (tuple, list)):
+            index = default[1]
+        else:
+            index = int(default)
+        return int(index) if int(index) >= 0 else None
+    except Exception:
+        return None
+
+
+def _probe_audio_output(
+    sd,
+    index: int,
+    sample_rate: float,
+    max_output_channels: int,
+) -> tuple[bool, str]:
+    channels = 2 if max_output_channels >= 2 else 1
+    try:
+        sd.check_output_settings(
+            device=index,
+            channels=channels,
+            samplerate=sample_rate,
+            dtype="float32",
+        )
+        return True, ""
+    except Exception as exc:
+        message = str(exc).strip()
+        return False, message or "The playback device cannot currently be opened."
+
+
+def list_audio_outputs() -> list[AudioOutputInfo]:
+    try:
+        import sounddevice as sd
+    except ImportError:
+        return []
+
+    default_index = _default_output_index(sd)
+    devices = sd.query_devices()
+    outputs: list[AudioOutputInfo] = []
+
+    for index, device in enumerate(devices):
+        channels = int(device.get("max_output_channels", 0))
+        if channels <= 0:
+            continue
+        sample_rate = float(device.get("default_samplerate", 44_100.0))
+        available, reason = _probe_audio_output(
+            sd,
+            index,
+            sample_rate,
+            channels,
+        )
+        outputs.append(
+            AudioOutputInfo(
+                index=index,
+                name=str(device.get("name", f"Output {index}")),
+                sample_rate=sample_rate,
+                max_output_channels=channels,
+                is_default=index == default_index,
+                available=available,
+                unavailable_reason=reason,
+            )
+        )
+
+    outputs.sort(
+        key=lambda item: (
+            not item.available,
+            not item.is_default,
+            item.index,
+        )
+    )
+    return outputs
+
+
+def detect_default_audio_output_label() -> str:
+    outputs = list_audio_outputs()
+    for output in outputs:
+        if output.is_default and output.available:
+            return output.label
+    for output in outputs:
+        if output.available:
+            return output.label
+    return "No available playback device detected"
+
+
+def parse_audio_output_index(label: str) -> int | None:
+    if not label or label == "System default output" or ":" not in label:
         return None
     prefix = label.split(":", 1)[0].strip()
     try:
@@ -425,7 +539,9 @@ class WavRecorder(threading.Thread):
         self.path = path
         self.sample_rate = int(round(sample_rate))
         self.rollover_seconds = max(60.0, float(rollover_seconds))
-        self.queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=600)
+        self.queue: queue.Queue[np.ndarray | None] = queue.Queue(
+            maxsize=resource_policy(True).recorder_queue_blocks
+        )
         self.error: str | None = None
         self.completed = threading.Event()
         self.part_paths: list[Path] = []
@@ -603,6 +719,251 @@ class _CaptureOutputMixin:
             self.output_queue.put(None)
 
 
+class MicrophoneOutputMonitor:
+    """Route microphone samples to a selected playback device.
+
+    Monitoring is output-only. The microphone capture callback places copies of
+    raw samples into a bounded queue, so playback cannot block transcription or
+    WAV recording. The original captured samples remain unchanged.
+    """
+
+    def __init__(
+        self,
+        output_label: str,
+        event_callback: Callable[[str, Any], None] | None = None,
+    ) -> None:
+        self.output_label = output_label
+        self.event_callback = event_callback
+        self._queue: queue.Queue[tuple[np.ndarray, float] | None] = queue.Queue(
+            maxsize=resource_policy(True).monitor_queue_blocks
+        )
+        self._stream = None
+        self._worker: threading.Thread | None = None
+        self._stop_event = threading.Event()
+        self._lock = threading.RLock()
+        self._enabled = False
+        self._source_rate = 44_100.0
+        self._output_rate = 44_100.0
+        self._output_channels = 2
+        self._warning_sent = False
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def _event(self, kind: str, payload: Any) -> None:
+        if self.event_callback is not None:
+            self.event_callback(kind, payload)
+
+    def start(self, source_rate: float) -> None:
+        with self._lock:
+            if self._enabled:
+                return
+            try:
+                import sounddevice as sd
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Microphone listening is not included in this package."
+                ) from exc
+
+            output_index = parse_audio_output_index(self.output_label)
+            try:
+                info = sd.query_devices(output_index, "output")
+            except Exception as exc:
+                raise RuntimeError(
+                    "The selected playback device could not be found."
+                ) from exc
+
+            output_rate = float(info.get("default_samplerate", source_rate))
+            max_channels = int(info.get("max_output_channels", 0))
+            if max_channels <= 0:
+                raise RuntimeError(
+                    "The selected device cannot play microphone audio."
+                )
+            output_channels = 2 if max_channels >= 2 else 1
+
+            try:
+                stream = sd.OutputStream(
+                    device=output_index,
+                    channels=output_channels,
+                    samplerate=output_rate,
+                    dtype="float32",
+                    latency="low",
+                )
+                stream.start()
+            except Exception as exc:
+                message = str(exc).strip()
+                raise RuntimeError(
+                    "The selected playback device could not be opened for "
+                    "microphone listening. Use headphones and choose another "
+                    f"output if needed. Details: {message or 'output unavailable'}"
+                ) from exc
+
+            self._source_rate = float(source_rate)
+            self._output_rate = output_rate
+            self._output_channels = output_channels
+            self._stream = stream
+            self._stop_event.clear()
+            self._warning_sent = False
+            self._enabled = True
+            self._worker = threading.Thread(
+                target=self._playback_loop,
+                name="microphone-playback-monitor",
+                daemon=True,
+            )
+            self._worker.start()
+
+    def submit(self, samples: np.ndarray, source_rate: float) -> None:
+        if not self._enabled:
+            return
+        item = (
+            np.asarray(samples, dtype=np.float32).reshape(-1).copy(),
+            float(source_rate),
+        )
+        try:
+            self._queue.put_nowait(item)
+        except queue.Full:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._queue.put_nowait(item)
+            except queue.Full:
+                if not self._warning_sent:
+                    self._warning_sent = True
+                    self._event(
+                        "warning",
+                        "Microphone listening briefly fell behind. "
+                        "Transcription and the WAV recording were not interrupted.",
+                    )
+
+    def _playback_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                item = self._queue.get(timeout=0.20)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            samples, source_rate = item
+            if samples.size == 0:
+                continue
+            output = resample_linear(
+                samples,
+                source_rate,
+                int(round(self._output_rate)),
+            )
+            if self._output_channels > 1:
+                output = np.repeat(
+                    output.reshape(-1, 1),
+                    self._output_channels,
+                    axis=1,
+                )
+            else:
+                output = output.reshape(-1, 1)
+            stream = self._stream
+            if stream is None:
+                continue
+            try:
+                stream.write(output)
+            except Exception as exc:
+                if not self._warning_sent:
+                    self._warning_sent = True
+                    self._event(
+                        "warning",
+                        "Microphone listening stopped, but transcription and "
+                        "recording are continuing. "
+                        f"Details: {str(exc).strip() or 'playback error'}",
+                    )
+                break
+
+    def stop(self) -> None:
+        """Stop playback promptly without holding the caller on driver I/O."""
+        with self._lock:
+            if not self._enabled and self._stream is None and self._worker is None:
+                return
+
+            self._enabled = False
+            self._stop_event.set()
+            stream = self._stream
+            self._stream = None
+            worker = self._worker
+            self._worker = None
+
+            if stream is not None:
+                try:
+                    abort = getattr(stream, "abort", None)
+                    if callable(abort):
+                        abort()
+                except Exception:
+                    pass
+
+            try:
+                self._queue.put_nowait(None)
+            except queue.Full:
+                try:
+                    self._queue.get_nowait()
+                except queue.Empty:
+                    pass
+                try:
+                    self._queue.put_nowait(None)
+                except queue.Full:
+                    pass
+
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=1.0)
+
+        if stream is not None:
+            try:
+                stream.stop()
+            except Exception:
+                pass
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+
+    def set_enabled(self, enabled: bool, source_rate: float) -> bool:
+        if enabled:
+            try:
+                self.start(source_rate)
+            except RuntimeError as exc:
+                self._event("warning", str(exc))
+                return False
+            return True
+        self.stop()
+        return True
+
+    def set_output_label(self, label: str, source_rate: float) -> bool:
+        clean = label.strip()
+        if not clean or clean == self.output_label:
+            return True
+        was_enabled = self._enabled
+        previous = self.output_label
+        self.stop()
+        self.output_label = clean
+        if not was_enabled:
+            return True
+        try:
+            self.start(source_rate)
+        except RuntimeError as exc:
+            self.output_label = previous
+            try:
+                self.start(source_rate)
+            except RuntimeError:
+                pass
+            self._event("warning", str(exc))
+            return False
+        return True
+
+
 class MicrophoneCapture(_CaptureOutputMixin):
     def __init__(
         self,
@@ -610,6 +971,8 @@ class MicrophoneCapture(_CaptureOutputMixin):
         microphone_index: int | None,
         recording_path: Path,
         event_callback: Callable[[str, str], None] | None = None,
+        monitor_enabled: bool = False,
+        monitor_output_label: str = "System default output",
     ) -> None:
         self.output_queue = output_queue
         self.microphone_index = microphone_index
@@ -626,6 +989,12 @@ class MicrophoneCapture(_CaptureOutputMixin):
         self._paused = threading.Event()
         self._last_level_emit = 0.0
         self._quiet_since: float | None = None
+        self.monitor_enabled = bool(monitor_enabled)
+        self.monitor_output_label = monitor_output_label
+        self._output_monitor = MicrophoneOutputMonitor(
+            monitor_output_label,
+            event_callback=event_callback,
+        )
 
     def start(self) -> None:
         try:
@@ -651,7 +1020,9 @@ class MicrophoneCapture(_CaptureOutputMixin):
             del frames, time_info
             if status:
                 self._event("warning", f"Microphone notice: {status}")
-            self._submit_samples(np.asarray(indata[:, 0], dtype=np.float32))
+            raw = np.asarray(indata[:, 0], dtype=np.float32)
+            self._output_monitor.submit(raw, self._source_rate)
+            self._submit_samples(raw)
 
         try:
             self._stream = sd.InputStream(
@@ -663,6 +1034,11 @@ class MicrophoneCapture(_CaptureOutputMixin):
                 callback=callback,
             )
             self._stream.start()
+            if self.monitor_enabled:
+                self.monitor_enabled = self._output_monitor.set_enabled(
+                    True,
+                    self._source_rate,
+                )
         except Exception as exc:
             self._closed = True
             self._finish_wav()
@@ -672,10 +1048,30 @@ class MicrophoneCapture(_CaptureOutputMixin):
                 f"and try again. Details: {message or 'microphone unavailable'}"
             ) from exc
 
+    def set_monitor_enabled(self, enabled: bool) -> bool:
+        self.monitor_enabled = bool(enabled)
+        result = self._output_monitor.set_enabled(
+            self.monitor_enabled,
+            self._source_rate,
+        )
+        if not result:
+            self.monitor_enabled = False
+        return result
+
+    def set_monitor_output(self, label: str) -> bool:
+        result = self._output_monitor.set_output_label(
+            label,
+            self._source_rate,
+        )
+        if result:
+            self.monitor_output_label = label
+        return result
+
     def stop(self) -> None:
         if self._closed:
             return
         self._closed = True
+        self._output_monitor.stop()
 
         try:
             if self._stream is not None:
@@ -1081,6 +1477,8 @@ class AudioInputMonitor:
         microphone_index: int | None,
         application_enabled: bool,
         event_callback: Callable[[dict[str, Any]], None],
+        microphone_monitor_enabled: bool = False,
+        microphone_monitor_output_label: str = "System default output",
     ) -> None:
         self.source_mode = source_mode
         self.input_label = input_label
@@ -1094,6 +1492,14 @@ class AudioInputMonitor:
         self._stop_event = threading.Event()
         self._app_capture: ApplicationAudioCapture | None = None
         self._last_emit = 0.0
+        self.microphone_monitor_enabled = bool(microphone_monitor_enabled)
+        self.microphone_monitor_output_label = microphone_monitor_output_label
+        self._microphone_output_monitor = MicrophoneOutputMonitor(
+            microphone_monitor_output_label,
+        )
+        self._microphone_sample_rate = 44_100.0
+        self._stop_lock = threading.Lock()
+        self._stopped = False
 
     def _emit(self, samples: np.ndarray) -> None:
         now = time.monotonic()
@@ -1155,10 +1561,13 @@ class AudioInputMonitor:
             raise RuntimeError("Microphone testing is not included in this package.") from exc
         device_info = sd.query_devices(self.microphone_index, "input")
         sample_rate = float(device_info["default_samplerate"])
+        self._microphone_sample_rate = sample_rate
         blocksize = max(256, int(sample_rate * 0.08))
 
         def callback(indata, _frames, _time_info, _status) -> None:
-            self._emit(np.asarray(indata[:, 0], dtype=np.float32))
+            raw = np.asarray(indata[:, 0], dtype=np.float32)
+            self._microphone_output_monitor.submit(raw, sample_rate)
+            self._emit(raw)
 
         self._stream = sd.InputStream(
             device=self.microphone_index,
@@ -1169,6 +1578,33 @@ class AudioInputMonitor:
             callback=callback,
         )
         self._stream.start()
+        if self.microphone_monitor_enabled:
+            try:
+                self._microphone_output_monitor.start(sample_rate)
+            except RuntimeError:
+                self._stream.stop()
+                self._stream.close()
+                self._stream = None
+                raise
+
+    def set_microphone_monitor_enabled(self, enabled: bool) -> bool:
+        self.microphone_monitor_enabled = bool(enabled)
+        result = self._microphone_output_monitor.set_enabled(
+            self.microphone_monitor_enabled,
+            self._microphone_sample_rate,
+        )
+        if not result:
+            self.microphone_monitor_enabled = False
+        return result
+
+    def set_microphone_monitor_output(self, label: str) -> bool:
+        result = self._microphone_output_monitor.set_output_label(
+            label,
+            self._microphone_sample_rate,
+        )
+        if result:
+            self.microphone_monitor_output_label = label
+        return result
 
     def _on_app_event(self, kind: str, payload: Any) -> None:
         if kind == "audio_level" and isinstance(payload, dict):
@@ -1190,26 +1626,58 @@ class AudioInputMonitor:
             pass
 
     def stop(self) -> None:
-        self._stop_event.set()
-        if self._app_capture is not None:
-            self._app_capture.stop()
+        """Release a test input safely and idempotently.
+
+        The GUI runs this on a cleanup worker because some Windows drivers may
+        wait inside stop/close. Resources are detached and aborted first.
+        """
+        with self._stop_lock:
+            if self._stopped:
+                return
+            self._stopped = True
+            self._stop_event.set()
+            app_capture = self._app_capture
             self._app_capture = None
-        if self._stream is not None:
+            stream = self._stream
+            self._stream = None
+            worker = self._worker
+            self._worker = None
+            context = self._context
+            self._context = None
+            self._recorder = None
+
+        self._microphone_output_monitor.stop()
+
+        if stream is not None:
             try:
-                self._stream.stop()
-                self._stream.close()
+                abort = getattr(stream, "abort", None)
+                if callable(abort):
+                    abort()
             except Exception:
                 pass
-            self._stream = None
-        if self._worker is not None:
-            self._worker.join(timeout=2)
-            self._worker = None
-        context = self._context
-        self._context = None
-        self._recorder = None
+
         if context is not None:
             try:
                 context.__exit__(None, None, None)
+            except Exception:
+                pass
+
+        if app_capture is not None:
+            try:
+                app_capture.stop()
+            except Exception:
+                pass
+
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=1.0)
+
+        if stream is not None:
+            try:
+                stream.stop()
+            except Exception:
+                pass
+            try:
+                stream.close()
             except Exception:
                 pass
 
@@ -1219,10 +1687,10 @@ class SpeechSegmenter(threading.Thread):
         input_queue: queue.Queue[AudioBlock | None],
         output_queue: queue.Queue[SpeechChunk | None],
         rms_threshold: float,
-        min_speech_seconds: float = 0.35,
-        end_silence_seconds: float = 0.80,
-        max_chunk_seconds: float = 15.0,
-        pre_roll_seconds: float = 0.35,
+        min_speech_seconds: float = 0.25,
+        end_silence_seconds: float = 0.55,
+        max_chunk_seconds: float = 12.0,
+        pre_roll_seconds: float = 0.25,
     ) -> None:
         super().__init__(name="speech-segmenter", daemon=True)
         self.input_queue = input_queue
@@ -1256,6 +1724,7 @@ class SpeechSegmenter(threading.Thread):
         active = False
         silence_seconds = 0.0
         speech_seconds = 0.0
+        active_duration = 0.0
 
         while True:
             block = self.input_queue.get()
@@ -1280,20 +1749,23 @@ class SpeechSegmenter(threading.Thread):
                     active_blocks = list(pre_roll)
                     silence_seconds = 0.0
                     speech_seconds = block.duration
+                    active_duration = sum(
+                        item.duration for item in active_blocks
+                    )
                     pre_roll.clear()
                     pre_roll_duration = 0.0
                 continue
 
             active_blocks.append(block)
+            active_duration += block.duration
             if speech:
                 silence_seconds = 0.0
                 speech_seconds += block.duration
             else:
                 silence_seconds += block.duration
 
-            total_seconds = sum(item.duration for item in active_blocks)
             phrase_finished = silence_seconds >= self.end_silence_seconds
-            maximum_reached = total_seconds >= self.max_chunk_seconds
+            maximum_reached = active_duration >= self.max_chunk_seconds
 
             if phrase_finished or maximum_reached:
                 self._emit(active_blocks, speech_seconds)
@@ -1301,5 +1773,6 @@ class SpeechSegmenter(threading.Thread):
                 active_blocks = []
                 silence_seconds = 0.0
                 speech_seconds = 0.0
+                active_duration = 0.0
                 pre_roll.clear()
                 pre_roll_duration = 0.0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -103,12 +104,17 @@ def model_id_from_display(value: str) -> str:
 
 
 AUDIO_SOURCE_MICROPHONE = "Microphone"
-AUDIO_SOURCE_SYSTEM = "Computer audio / livestream"
-AUDIO_SOURCE_APPLICATION = "Selected app audio (Windows)"
+AUDIO_SOURCE_SYSTEM = "Whole computer audio (advanced)"
+AUDIO_SOURCE_APPLICATION = "Computer / livestream — choose application"
+
+# Windows process-loopback can isolate one process tree. Do not offer ordinary
+# whole-system loopback in the normal Windows selector because it captures
+# unrelated applications. macOS/Linux retain their virtual/system audio route
+# until a platform-specific per-app backend is available.
 AUDIO_SOURCE_OPTIONS = (
-    AUDIO_SOURCE_MICROPHONE,
-    AUDIO_SOURCE_SYSTEM,
-    AUDIO_SOURCE_APPLICATION,
+    (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_APPLICATION)
+    if sys.platform == "win32"
+    else (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_SYSTEM)
 )
 
 LANGUAGE_AUTO = "Auto Detect"
@@ -212,6 +218,8 @@ class AppSettings:
     language_label: str = LANGUAGE_TAGLISH
     audio_source_mode: str = AUDIO_SOURCE_MICROPHONE
     microphone_label: str = "Default input"
+    microphone_listen_enabled: bool = False
+    microphone_monitor_output_label: str = ""
     application_audio_label: str = ""
     application_audio_enabled: bool = True
     device_mode: str = "Auto"
@@ -219,6 +227,8 @@ class AppSettings:
     include_timestamps: bool = True
     final_accuracy_pass: bool = False
     live_noise_reduction: bool = False
+    smart_vad: bool = True
+    memory_saver: bool = True
     noise_reduction: bool = True
     grammar_diction_comments: bool = True
     include_live_appendix: bool = True
@@ -253,6 +263,18 @@ class AppSettings:
         if safe.get("language_label") == "Tagalog / Filipino":
             safe["language_label"] = LANGUAGE_FILIPINO
 
+        # Migrate v0.8.x audio-source labels. On Windows, old whole-computer
+        # selection becomes the safer selected-application workflow.
+        previous_source = safe.get("audio_source_mode")
+        if previous_source == "Selected app audio (Windows)":
+            safe["audio_source_mode"] = AUDIO_SOURCE_APPLICATION
+        elif previous_source == "Computer audio / livestream":
+            safe["audio_source_mode"] = (
+                AUDIO_SOURCE_APPLICATION
+                if sys.platform == "win32"
+                else AUDIO_SOURCE_SYSTEM
+            )
+
         try:
             settings = cls(**safe)
         except TypeError:
@@ -265,6 +287,10 @@ class AppSettings:
             settings.model_name = ""
         if settings.audio_source_mode not in AUDIO_SOURCE_OPTIONS:
             settings.audio_source_mode = AUDIO_SOURCE_MICROPHONE
+        if not isinstance(settings.microphone_listen_enabled, bool):
+            settings.microphone_listen_enabled = False
+        if not isinstance(settings.microphone_monitor_output_label, str):
+            settings.microphone_monitor_output_label = ""
         if not isinstance(settings.application_audio_enabled, bool):
             settings.application_audio_enabled = True
         if settings.language_label not in LANGUAGE_LABEL_TO_CODE:
@@ -277,6 +303,10 @@ class AppSettings:
             settings.theme_name = THEME_OLED
         if not isinstance(settings.live_noise_reduction, bool):
             settings.live_noise_reduction = False
+        if not isinstance(settings.smart_vad, bool):
+            settings.smart_vad = True
+        if not isinstance(settings.memory_saver, bool):
+            settings.memory_saver = True
         if not isinstance(settings.noise_reduction, bool):
             settings.noise_reduction = True
         if not isinstance(settings.topic_profile_id, str) or not settings.topic_profile_id.strip():

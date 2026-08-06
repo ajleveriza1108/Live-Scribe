@@ -39,3 +39,9 @@ workflow. Review the upstream repository license and notices when distributing
 the compiled helper. Live Scribe changes the temporary WAV sharing flag so the
 Python application can read captured PCM while the sample is running.
 
+## Silero VAD through Faster-Whisper
+
+Live Scribe uses Faster-Whisper's included Silero VAD implementation and ONNX
+asset for optional pre-inference voice gating. Silero VAD is MIT licensed.
+No Torch runtime or separate VAD model is bundled by Live Scribe.
+
