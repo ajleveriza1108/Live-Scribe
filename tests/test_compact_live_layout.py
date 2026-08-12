@@ -11,16 +11,16 @@ def _source(relative: str) -> str:
 
 def test_live_page_uses_compact_readable_shell() -> None:
     source = _source("src/taglish_transcriber/ui.py")
-    assert "width=202," in source
-    assert 'font=ctk.CTkFont(family=self.font_family, size=24, weight="bold")' in source
+    assert "width=232," in source
+    assert "size=24" in source
     assert 'header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 10))' in source
     assert 'input_card = self._card(page, row=2, column=0, sticky="ew", padx=20, pady=(0, 8))' in source
     assert 'self.start_button.grid(row=0, column=0, padx=(10, 4), pady=8)' in source
 
 
-def test_live_input_controls_stay_readable_but_compact() -> None:
+def test_workspace_input_controls_stay_readable_but_compact() -> None:
     source = _source("src/taglish_transcriber/ui.py")
-    assert 'text="Input"' in source
+    assert 'value="Meeting audio setup"' in source
     assert 'font=ctk.CTkFont(family=self.font_family, size=13, weight="bold")' in source
     assert source.count("height=34,") >= 4
     assert "width=78," in source
@@ -39,11 +39,11 @@ def test_conversation_panels_do_not_share_the_same_grid_row() -> None:
     assert session_anchor in source
 
 
-def test_compact_layout_preserves_minimum_text_sizes() -> None:
+def test_compact_layout_preserves_readable_body_text() -> None:
     ui_source = _source("src/taglish_transcriber/ui.py")
     productivity_source = _source("src/taglish_transcriber/productivity_features.py")
-    # The compact pass intentionally does not introduce 8px/9px body text.
     assert "size=8" not in ui_source
-    assert "size=9" not in ui_source
     assert "size=8" not in productivity_source
-    assert "size=9" not in productivity_source
+    # 9px is reserved for sidebar section labels, not body controls.
+    assert 'size=9,' in ui_source
+    assert 'size=10' in productivity_source

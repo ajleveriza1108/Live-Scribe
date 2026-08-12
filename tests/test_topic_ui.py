@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-def test_modern_ui_exposes_topic_profiles_and_crud() -> None:
+def test_topic_profiles_are_managed_from_settings_with_crud_preserved() -> None:
     source = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -9,10 +9,11 @@ def test_modern_ui_exposes_topic_profiles_and_crud() -> None:
         / "ui.py"
     ).read_text(encoding="utf-8")
 
-    assert '("Topics", "◎")' in source
+    assert 'self.settings_tabs.add("Topic Profiles")' in source
     assert "Topic profile" in source
-    assert "Manage Topics" in source
+    assert "Manage Topic Profiles" in source
     assert "Add New" in source
     assert "Save Changes" in source
     assert "Remove Selected" in source
     assert "_topic_context_for_session" in source
+    assert '("Topics", "◎")' not in source

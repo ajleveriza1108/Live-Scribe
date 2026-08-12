@@ -68,6 +68,9 @@ class ProductivityFeaturesMixin:
         self.audio_level_text_var: tk.StringVar | None = None
         self.storage_window = None
         self.input_monitor: AudioInputMonitor | None = None
+        self.application_test_monitor: AudioInputMonitor | None = None
+        self.application_test_level_var: tk.DoubleVar | None = None
+        self.application_test_text_var: tk.StringVar | None = None
         self._input_test_auto_started_for_microphone_listen = False
         self._input_test_stop_in_progress = False
         self._input_test_stop_callbacks: list[object] = []
@@ -139,6 +142,7 @@ class ProductivityFeaturesMixin:
             border_color=self._color("border"),
             border_width=1,
         )
+        self.input_test_panel = input_test_panel
         input_test_panel.grid(
             row=5,
             column=0,
@@ -148,9 +152,10 @@ class ProductivityFeaturesMixin:
             pady=(0, 8),
         )
         input_test_panel.grid_columnconfigure(1, weight=1)
+        self.input_test_title_var = tk.StringVar(value="Microphone test")
         ctk.CTkLabel(
             input_test_panel,
-            text="Live input check",
+            textvariable=self.input_test_title_var,
             text_color=self._color("text"),
             font=ctk.CTkFont(
                 family=self.font_family,
@@ -177,7 +182,7 @@ class ProductivityFeaturesMixin:
         ).grid(row=0, column=2, padx=6, pady=8)
         self.input_test_button = ctk.CTkButton(
             input_test_panel,
-            text="Test Input",
+            text="Test Microphone",
             command=self._toggle_input_test,
             width=92,
             height=32,
@@ -364,7 +369,7 @@ class ProductivityFeaturesMixin:
             fg_color="transparent",
         )
         self.conversation_labels_frame.grid(
-            row=2,
+            row=3,
             column=0,
             columnspan=3,
             sticky="ew",
@@ -405,6 +410,62 @@ class ProductivityFeaturesMixin:
         self.conversation_me_entry.grid(row=0, column=3, sticky="ew")
         self.conversation_caller_entry.bind("<FocusOut>", self._save_conversation_labels)
         self.conversation_me_entry.bind("<FocusOut>", self._save_conversation_labels)
+        self.application_test_level_var = tk.DoubleVar(value=0.0)
+        self.application_test_text_var = tk.StringVar(value="Not tested")
+        self.application_test_panel = ctk.CTkFrame(
+            self.application_audio_frame,
+            fg_color="transparent",
+        )
+        self.application_test_panel.grid(
+            row=2,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+            padx=10,
+            pady=(0, 7),
+        )
+        self.application_test_panel.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            self.application_test_panel,
+            text="Selected app audio test",
+            text_color=self._color("text"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=10,
+                weight="bold",
+            ),
+        ).grid(row=0, column=0, padx=(0, 6))
+        self.application_test_bar = ctk.CTkProgressBar(
+            self.application_test_panel,
+            variable=self.application_test_level_var,
+            height=8,
+            corner_radius=4,
+            progress_color=self._color("success"),
+            fg_color=self._color("surface_alt"),
+        )
+        self.application_test_bar.grid(row=0, column=1, sticky="ew", padx=6)
+        ctk.CTkLabel(
+            self.application_test_panel,
+            textvariable=self.application_test_text_var,
+            width=115,
+            anchor="w",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=0, column=2, padx=6)
+        self.application_test_button = ctk.CTkButton(
+            self.application_test_panel,
+            text="Test App Audio",
+            command=self._toggle_application_audio_test,
+            width=104,
+            height=30,
+            fg_color=self._color("surface_alt"),
+            hover_color=self._color("border"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.application_test_button.grid(row=0, column=3, padx=(6, 0))
+
         self.conversation_labels_frame.grid_remove()
         self.application_audio_frame.grid_remove()
         ctk.CTkLabel(
@@ -542,7 +603,115 @@ class ProductivityFeaturesMixin:
             "The raw transcript was not changed."
         )
 
+    def _toggle_application_audio_test(self) -> None:
+        if self.application_test_monitor is not None:
+            self._stop_application_audio_test()
+            return
+
+        if self.input_monitor is not None or self._input_test_stop_in_progress:
+            self.activity_var.set(
+                "Stop the microphone test before testing selected-app audio."
+            )
+            return
+
+        if (
+            self.session is not None
+            or self.model_loading
+            or self.model_downloading
+            or self.finalizing
+        ):
+            return
+
+        selected = self.application_audio_var.get().strip()
+        if (
+            not selected
+            or selected.startswith("No running application")
+            or selected.startswith("Selected-app audio helper")
+        ):
+            messagebox.showinfo(
+                "Choose an application",
+                "Select the call, meeting, class, interview, or livestream app first.",
+                parent=self.root,
+            )
+            return
+
+        try:
+            self.application_test_monitor = AudioInputMonitor(
+                source_mode=AUDIO_SOURCE_APPLICATION,
+                input_label=selected,
+                application_label=selected,
+                microphone_index=None,
+                application_enabled=True,
+                event_callback=self._threadsafe_application_test_level,
+            )
+            self.application_test_monitor.start()
+        except Exception as exc:
+            failed = self.application_test_monitor
+            self.application_test_monitor = None
+            if failed is not None:
+                try:
+                    failed.stop()
+                except Exception:
+                    pass
+            messagebox.showwarning(
+                "Selected-app audio test could not start",
+                str(exc).strip()
+                or "The selected application audio could not be opened.",
+                parent=self.root,
+            )
+            return
+
+        self.application_test_level_var.set(0.0)
+        self.application_test_text_var.set("Listening…")
+        self.application_test_button.configure(text="Stop App Test")
+        self.activity_var.set(
+            f"Testing selected-app audio only: {selected}. "
+            "Play sound in that app; unrelated apps should not drive this meter."
+        )
+
+    def _threadsafe_application_test_level(self, payload: dict) -> None:
+        try:
+            self.root.after(0, self._apply_application_test_level, dict(payload))
+        except Exception:
+            pass
+
+    def _apply_application_test_level(self, payload: dict) -> None:
+        if self.application_test_monitor is None:
+            return
+        rms = max(0.0, float(payload.get("rms", 0.0)))
+        peak = max(0.0, float(payload.get("peak", 0.0)))
+        level = min(1.0, rms * 18.0)
+        self.application_test_level_var.set(level)
+        if payload.get("clipping") or peak >= 0.98:
+            self.application_test_text_var.set("Too loud")
+        elif rms < 0.003:
+            self.application_test_text_var.set("No app audio yet")
+        elif peak > 0.75:
+            self.application_test_text_var.set("Strong signal")
+        else:
+            self.application_test_text_var.set("Hearing app audio")
+
+    def _stop_application_audio_test(self) -> None:
+        monitor = self.application_test_monitor
+        self.application_test_monitor = None
+        if monitor is not None:
+            try:
+                monitor.stop()
+            except Exception:
+                pass
+        if self.application_test_level_var is not None:
+            self.application_test_level_var.set(0.0)
+        if self.application_test_text_var is not None:
+            self.application_test_text_var.set("Not tested")
+        if hasattr(self, "application_test_button"):
+            self.application_test_button.configure(text="Test App Audio")
+
     def _toggle_input_test(self) -> None:
+        if self.application_test_monitor is not None:
+            self.activity_var.set(
+                "Stop the selected-app audio test before testing the microphone."
+            )
+            return
         if self.input_monitor is not None or self._input_test_stop_in_progress:
             self._stop_input_test(manual=True, restore_idle=True)
             return
@@ -571,8 +740,12 @@ class ProductivityFeaturesMixin:
         self._input_test_generation += 1
         generation = self._input_test_generation
         try:
+            test_source_mode = self.audio_source_var.get()
+            if test_source_mode == AUDIO_SOURCE_CONVERSATION:
+                test_source_mode = AUDIO_SOURCE_MICROPHONE
+
             self.input_monitor = AudioInputMonitor(
-                source_mode=self.audio_source_var.get(),
+                source_mode=test_source_mode,
                 input_label=self.microphone_var.get(),
                 application_label=self.application_audio_var.get(),
                 microphone_index=self._microphone_index_for_test(),
@@ -732,7 +905,7 @@ class ProductivityFeaturesMixin:
     def _finish_input_test_stop(self, restore_idle: bool = True) -> None:
         self._input_test_stop_in_progress = False
         if hasattr(self, "input_test_button"):
-            self.input_test_button.configure(text="Test Input", state="normal")
+            self.input_test_button.configure(text="Test Microphone", state="normal")
         if self.session is None and self.audio_level_var is not None:
             self.audio_level_var.set(0.0)
             self.audio_level_text_var.set("Waiting for audio")
@@ -1127,6 +1300,8 @@ class ProductivityFeaturesMixin:
         self.import_media_button.configure(state="disabled")
         if hasattr(self, "import_media_primary_button"):
             self.import_media_primary_button.configure(state="disabled")
+        if hasattr(self, "application_test_button"):
+            self.application_test_button.configure(state="disabled")
         self.session_title_entry.configure(state="disabled")
 
     def _set_controls_for_idle(self) -> None:
@@ -1195,7 +1370,7 @@ class ProductivityFeaturesMixin:
                     else (
                         "Stop Test"
                         if self.input_monitor is not None
-                        else "Test Input"
+                        else "Test Microphone"
                     )
                 ),
             )
@@ -1205,6 +1380,15 @@ class ProductivityFeaturesMixin:
             )
         if hasattr(self, "application_audio_switch"):
             self.application_audio_switch.configure(state="normal")
+        if hasattr(self, "application_test_button"):
+            self.application_test_button.configure(
+                state="normal",
+                text=(
+                    "Stop App Test"
+                    if self.application_test_monitor is not None
+                    else "Test App Audio"
+                ),
+            )
         if hasattr(self, "application_refresh_button"):
             self.application_refresh_button.configure(state="normal")
         if hasattr(self, "microphone_listen_switch"):
@@ -1231,8 +1415,13 @@ class ProductivityFeaturesMixin:
                     )
                 )
 
+    def _on_application_audio_selected(self, value: str | None = None) -> None:
+        if self.application_test_monitor is not None:
+            self._stop_application_audio_test()
+        super()._on_application_audio_selected(value)
+
     def _refresh_microphone_monitor_devices(self) -> None:
-        """Refresh monitor source and connected playback-output choices."""
+        """Refresh the monitor source and its short connected-output list."""
         source_mode = self.audio_source_var.get()
         if source_mode not in {
             AUDIO_SOURCE_MICROPHONE,
@@ -1242,10 +1431,7 @@ class ProductivityFeaturesMixin:
 
         selected_microphone = self.microphone_var.get().strip()
         if hasattr(self, "microphone_monitor_source_var"):
-            if (
-                selected_microphone
-                and selected_microphone != "No available microphone detected"
-            ):
+            if selected_microphone and selected_microphone != "No available microphone detected":
                 self.microphone_monitor_source_var.set(
                     f"Source: {selected_microphone} • "
                     "Uses the same filtered microphone selected above. "
@@ -1359,6 +1545,8 @@ class ProductivityFeaturesMixin:
     # Live session, pause, audio meter, recovery
     # ------------------------------------------------------------------
     def _start_requested(self) -> None:
+        if self.application_test_monitor is not None:
+            self._stop_application_audio_test()
         if self.input_monitor is not None or self._input_test_stop_in_progress:
             self._stop_input_test(
                 on_stopped=self._continue_start_requested,
@@ -1373,7 +1561,15 @@ class ProductivityFeaturesMixin:
         else:
             title = ""
         if not title:
-            title = datetime.now().strftime("Live Session %Y-%m-%d %H-%M")
+            if self.current_page == "Interview Mode":
+                prefix = "Interview"
+            elif self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+                prefix = "Livestream"
+            elif self.audio_source_var.get() == AUDIO_SOURCE_CONVERSATION:
+                prefix = "Meeting"
+            else:
+                prefix = "Live Session"
+            title = datetime.now().strftime(f"{prefix} %Y-%m-%d %H-%M")
             if self.session_title_var is not None:
                 self.session_title_var.set(title)
         self.pending_session_title = title
@@ -1388,7 +1584,11 @@ class ProductivityFeaturesMixin:
         self.document.source_type = (
             "conversation"
             if self.audio_source_var.get() == AUDIO_SOURCE_CONVERSATION
-            else "live"
+            else (
+                "livestream"
+                if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION
+                else "live"
+            )
         )
         self.document.recording_path = session.recording_path
         self.document.source_recordings = dict(session.source_recordings)
@@ -1561,7 +1761,7 @@ class ProductivityFeaturesMixin:
         self._set_controls_for_idle()
         self._persist_current_document()
         self.recovery_manager.clear()
-        self._show_page("Live Session")
+        self._show_page(self._preferred_session_workspace())
         self.activity_var.set(
             "Recovered the unfinished transcript. Verify the available recording before relying on it."
         )
@@ -1899,7 +2099,11 @@ class ProductivityFeaturesMixin:
             source = (
                 "File"
                 if summary.source_type == "imported"
-                else ("Call" if summary.source_type == "conversation" else "Live")
+                else (
+                    "Meeting / Call"
+                    if summary.source_type == "conversation"
+                    else ("Livestream" if summary.source_type == "livestream" else "Live")
+                )
             )
             self.session_tree.insert(
                 "",
@@ -1936,7 +2140,7 @@ class ProductivityFeaturesMixin:
         self._redraw_all()
         self._refresh_editor()
         self._set_controls_for_idle()
-        self._show_page("Live Session")
+        self._show_page(self._preferred_session_workspace())
         self.notebook.select("Transcript editor")
         self.activity_var.set(f"Opened saved session: {document.title}")
 
@@ -2057,6 +2261,8 @@ class ProductivityFeaturesMixin:
         super()._set_controls_for_loading()
         if hasattr(self, "input_test_button"):
             self.input_test_button.configure(state="disabled")
+        if hasattr(self, "application_test_button"):
+            self.application_test_button.configure(state="disabled")
         if hasattr(self, "summary_button"):
             self.summary_button.configure(state="disabled")
         if hasattr(self, "microphone_listen_switch"):
@@ -2590,6 +2796,8 @@ class ProductivityFeaturesMixin:
     # Safe close
     # ------------------------------------------------------------------
     def _on_close(self) -> None:
+        if self.application_test_monitor is not None:
+            self._stop_application_audio_test()
         if self.input_monitor is not None or self._input_test_stop_in_progress:
             self.activity_var.set("Closing the input test before exiting…")
             self._stop_input_test(

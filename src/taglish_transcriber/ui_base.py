@@ -13,6 +13,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from .audio import (
     AudioInputMonitor,
     detect_default_audio_output_label,
+    clean_microphone_label,
     detect_default_microphone_label,
     list_audio_outputs,
     detect_default_system_audio_label,
@@ -479,6 +480,8 @@ class TaglishTranscriberApp:
             if self.session is not None:
                 self.session.set_application_audio_target(selected)
         else:
+            selected = clean_microphone_label(selected)
+            self.microphone_var.set(selected)
             self.settings.microphone_label = selected
         self.settings.save()
         if hasattr(self, "_stop_input_test"):
@@ -540,7 +543,9 @@ class TaglishTranscriberApp:
                 labels = ["No available microphone detected"]
                 disabled_labels = list(labels)
                 available_labels = []
-            selected = self.settings.microphone_label or detect_default_microphone_label()
+            selected = clean_microphone_label(
+                self.settings.microphone_label
+            ) or detect_default_microphone_label()
             if selected not in available_labels and available_labels:
                 selected = detect_default_microphone_label()
                 if selected not in available_labels:
@@ -548,10 +553,8 @@ class TaglishTranscriberApp:
             if hasattr(self, "application_audio_frame"):
                 self.application_audio_frame.grid()
             if available_labels:
-                count = len(available_labels)
-                noun = "microphone" if count == 1 else "microphones"
                 self.activity_var.set(
-                    f"Call Mode: {count} connected {noun} shown. "
+                    "Call Mode: connected microphones are available. "
                     "Inactive, disconnected, and duplicate Windows inputs are hidden."
                 )
             else:
@@ -612,16 +615,18 @@ class TaglishTranscriberApp:
                 labels = ["No available microphone detected"]
                 disabled_labels = list(labels)
                 available_labels = []
-            selected = detect_default_microphone_label()
+            selected = clean_microphone_label(
+                self.settings.microphone_label
+            ) or detect_default_microphone_label()
             if selected not in available_labels and available_labels:
-                selected = available_labels[0]
+                selected = detect_default_microphone_label()
+                if selected not in available_labels:
+                    selected = available_labels[0]
             if hasattr(self, "application_audio_frame"):
                 self.application_audio_frame.grid_remove()
             if available_labels:
-                count = len(available_labels)
-                noun = "microphone" if count == 1 else "microphones"
                 self.activity_var.set(
-                    f"{count} connected {noun} available. Selected: {selected}. "
+                    f"Connected microphones available. Selected: {selected}. "
                     "Inactive, disconnected, generic, and duplicate inputs are hidden."
                 )
             else:
@@ -1100,7 +1105,7 @@ class TaglishTranscriberApp:
                 return
         if self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}:
             selected_mics = {
-                item.label: item for item in list_microphones()
+                item.label: item for item in list_available_microphones()
             }
             selected_info = selected_mics.get(self.microphone_var.get())
             if selected_info is not None and not selected_info.available:

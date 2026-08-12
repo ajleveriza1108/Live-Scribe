@@ -63,3 +63,8 @@
 - Signed packages and checksum manifests.
 - Third-party license audit.
 - Buyer recovery and migration tools.
+
+## UI / UX workstream
+
+- **R12 complete:** task-based workspaces and settings information architecture.
+- **Next visual pass:** research current desktop GUI/UX/UI patterns and build a more premium Live Scribe design system without sacrificing compactness, readability, offline behavior, or low RAM usage.

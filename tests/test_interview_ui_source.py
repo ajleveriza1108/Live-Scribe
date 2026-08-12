@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_interview_mode_is_in_navigation_and_final_app() -> None:
     ui = (ROOT / "src" / "taglish_transcriber" / "ui.py").read_text(encoding="utf-8")
-    assert '("Interview Mode", "◆")' in ui
+    assert '("Interview Mode", "◆", "Interview Mode")' in ui
     assert "InterviewModeMixin, ProductivityFeaturesMixin" in ui
 
 
@@ -25,3 +25,10 @@ def test_profile_template_generates_question_bank() -> None:
     ).read_text(encoding="utf-8")
     assert "Generate Interview Template and Question Bank" in source
     assert "prepare_question_bank(profile)" in source
+
+
+def test_interview_page_has_audio_readiness_tools() -> None:
+    source = (ROOT / "src/taglish_transcriber/interview_ui.py").read_text(encoding="utf-8")
+    assert "Interview audio readiness" in source
+    assert "Test Interview App" in source
+    assert "Start Interview Capture" in source

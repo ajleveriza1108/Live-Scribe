@@ -28,7 +28,11 @@ class SessionSummary:
         source = (
             "File"
             if self.source_type == "imported"
-            else ("Call" if self.source_type == "conversation" else "Live")
+            else (
+                "Meeting / Call"
+                if self.source_type == "conversation"
+                else ("Livestream" if self.source_type == "livestream" else "Live")
+            )
         )
         return f"{date}  •  {source}  •  {self.title}"
 

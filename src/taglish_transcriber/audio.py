@@ -74,9 +74,10 @@ class MicrophoneInfo:
 
     @property
     def label(self) -> str:
+        """User-facing label; the internal PortAudio index stays hidden."""
         default_suffix = " (System default)" if self.is_default else ""
         availability_suffix = " — Unavailable" if not self.available else ""
-        return f"{self.index}: {self.name}{default_suffix}{availability_suffix}"
+        return f"{self.name}{default_suffix}{availability_suffix}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -382,14 +383,28 @@ def detect_default_microphone_label() -> str:
     return "No available microphone detected"
 
 
+def clean_microphone_label(label: str) -> str:
+    """Remove a legacy visible PortAudio index from saved microphone labels."""
+    value = str(label or "").strip()
+    match = re.match(r"^\s*\d+\s*:\s*(.+)$", value)
+    return match.group(1).strip() if match else value
+
+
 def parse_microphone_index(label: str) -> int | None:
-    if label == "Default input" or ":" not in label:
+    """Resolve a clean user-facing mic label back to its internal device index."""
+    value = str(label or "").strip()
+    if not value or value == "Default input":
         return None
-    prefix = label.split(":", 1)[0].strip()
-    try:
-        return int(prefix)
-    except ValueError:
-        return None
+
+    legacy_match = re.match(r"^\s*(\d+)\s*:\s*.+$", value)
+    if legacy_match:
+        return int(legacy_match.group(1))
+
+    clean_value = clean_microphone_label(value)
+    for microphone in list_available_microphones():
+        if microphone.label == clean_value:
+            return microphone.index
+    return None
 
 
 def _default_output_index(sd) -> int | None:
@@ -422,6 +437,7 @@ def _probe_audio_output(
     except Exception as exc:
         message = str(exc).strip()
         return False, message or "The playback device cannot currently be opened."
+
 
 
 def _looks_like_windows_audio_output_alias(name: str) -> bool:

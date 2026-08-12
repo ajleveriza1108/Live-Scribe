@@ -24,9 +24,9 @@ def test_productivity_gui_exposes_requested_controls() -> None:
         assert text in source
 
 
-def test_modern_navigation_includes_sessions() -> None:
+def test_modern_navigation_keeps_sessions_library() -> None:
     source = (
         ROOT / "src" / "taglish_transcriber" / "ui.py"
     ).read_text(encoding="utf-8")
-    assert '("Sessions", "▤")' in source
+    assert '("Sessions", "▤", "Sessions")' in source
     assert "ProductivityFeaturesMixin" in source

@@ -6,6 +6,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+from .config import AUDIO_SOURCE_CONVERSATION
 from .interview import (
     AssistantSuggestion,
     InterviewProfile,
@@ -45,7 +46,7 @@ class InterviewModeMixin:
 
     def _build_interview_page(self) -> None:
         page = self._page_frame("Interview Mode")
-        page.grid_rowconfigure(3, weight=1)
+        page.grid_rowconfigure(4, weight=1)
         page.grid_columnconfigure(0, weight=1)
 
         header = ctk.CTkFrame(page, fg_color="transparent")
@@ -153,8 +154,75 @@ class InterviewModeMixin:
         )
         status.grid(row=2, column=0, columnspan=4, sticky="ew", padx=16, pady=(0, 14))
 
+        self.interview_audio_status_var = tk.StringVar(
+            value="Audio readiness has not been checked yet."
+        )
+        audio = self._card(page, row=3, column=0, sticky="ew", padx=28, pady=(0, 10))
+        audio.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            audio,
+            text="Interview audio readiness",
+            text_color=self._color("text"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=13,
+                weight="bold",
+            ),
+        ).grid(row=0, column=0, sticky="w", padx=14, pady=(10, 2))
+        ctk.CTkLabel(
+            audio,
+            textvariable=self.interview_audio_status_var,
+            text_color=self._color("text_secondary"),
+            justify="left",
+            anchor="w",
+            wraplength=760,
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 9))
+
+        audio_buttons = ctk.CTkFrame(audio, fg_color="transparent")
+        audio_buttons.grid(row=0, column=1, rowspan=2, sticky="e", padx=14, pady=9)
+
+        ctk.CTkButton(
+            audio_buttons,
+            text="Detect Audio",
+            command=self._prepare_interview_audio,
+            height=32,
+            fg_color=self._color("surface_raised"),
+            hover_color=self._color("border"),
+            text_color=self._color("text"),
+        ).pack(side="left", padx=3)
+        ctk.CTkButton(
+            audio_buttons,
+            text="Test Microphone",
+            command=self._test_interview_microphone,
+            height=32,
+            fg_color=self._color("surface_raised"),
+            hover_color=self._color("border"),
+            text_color=self._color("text"),
+        ).pack(side="left", padx=3)
+        ctk.CTkButton(
+            audio_buttons,
+            text="Test Interview App",
+            command=self._test_interview_application,
+            height=32,
+            fg_color=self._color("surface_raised"),
+            hover_color=self._color("border"),
+            text_color=self._color("text"),
+        ).pack(side="left", padx=3)
+
+        self.interview_capture_button = ctk.CTkButton(
+            audio_buttons,
+            text="Start Interview Capture",
+            command=self._toggle_interview_capture,
+            height=32,
+            fg_color=self._color("success"),
+            hover_color=self._color("success"),
+            text_color="#FFFFFF",
+        )
+        self.interview_capture_button.pack(side="left", padx=(3, 0))
+
         body = ctk.CTkFrame(page, fg_color="transparent")
-        body.grid(row=3, column=0, sticky="nsew", padx=28, pady=(0, 22))
+        body.grid(row=4, column=0, sticky="nsew", padx=28, pady=(0, 18))
         body.grid_rowconfigure(0, weight=1)
         body.grid_columnconfigure(0, weight=1)
         body.grid_columnconfigure(1, weight=1)
@@ -266,6 +334,53 @@ class InterviewModeMixin:
             f"Loaded {self.interview_profile.name}: "
             f"{len(self.interview_profile.questions)} prepared questions."
         )
+
+    def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
+        super()._refresh_audio_inputs(auto_select=auto_select)
+        self._update_interview_audio_status()
+
+    def _prepare_interview_audio(self) -> None:
+        self.audio_source_var.set(AUDIO_SOURCE_CONVERSATION)
+        self.settings.audio_source_mode = AUDIO_SOURCE_CONVERSATION
+        self.settings.save()
+        self._refresh_audio_inputs(auto_select=True)
+        self._update_interview_audio_status()
+
+    def _update_interview_audio_status(self) -> None:
+        if not hasattr(self, "interview_audio_status_var"):
+            return
+        app_name = self.application_audio_var.get().strip() or "No app selected"
+        mic_name = self.microphone_var.get().strip() or "No microphone selected"
+        self.interview_audio_status_var.set(
+            f"Interview app: {app_name}  •  Microphone: {mic_name}. "
+            "Test both before the interview begins."
+        )
+        if hasattr(self, "interview_capture_button"):
+            if self.session is None:
+                self.interview_capture_button.configure(
+                    text="Start Interview Capture",
+                    fg_color=self._color("success"),
+                )
+            else:
+                self.interview_capture_button.configure(
+                    text="Stop & Save Interview",
+                    fg_color=self._color("danger"),
+                )
+
+    def _test_interview_microphone(self) -> None:
+        self._prepare_interview_audio()
+        self._toggle_input_test()
+
+    def _test_interview_application(self) -> None:
+        self._prepare_interview_audio()
+        self._toggle_application_audio_test()
+
+    def _toggle_interview_capture(self) -> None:
+        self._prepare_interview_audio()
+        if self.session is None:
+            self._start_requested()
+        else:
+            self._stop_requested()
 
     def _open_interview_profile_editor(self) -> None:
         profile = self.interview_profile or create_profile()
@@ -397,7 +512,7 @@ class InterviewModeMixin:
         self.interview_start_button.configure(text="Stop Interview Assist")
         self.interview_status_var.set(
             f"Interview Assist is ready with {len(self.interview_profile.questions)} prepared questions. "
-            "Start Live Session transcription and select the role for incoming speech."
+            "Use Interview Capture here and choose the incoming speech role."
         )
 
     def _handle_session_event(self, event) -> None:

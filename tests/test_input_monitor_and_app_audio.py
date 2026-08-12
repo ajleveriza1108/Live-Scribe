@@ -20,12 +20,14 @@ def test_non_windows_support_is_safely_reported() -> None:
     assert reason
 
 
-def test_input_test_is_visible_and_does_not_record() -> None:
+def test_microphone_and_selected_app_have_separate_tests() -> None:
     source = (
         ROOT / "src" / "taglish_transcriber" / "productivity_features.py"
     ).read_text(encoding="utf-8")
-    assert 'text="Live input check"' in source
-    assert 'text="Test Input"' in source
+    assert 'value="Microphone test"' in source
+    assert 'text="Test Microphone"' in source
+    assert 'text="Selected app audio test"' in source
+    assert 'text="Test App Audio"' in source
     assert "This does not start transcription or save audio" in source
 
 

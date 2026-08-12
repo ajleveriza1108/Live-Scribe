@@ -14,6 +14,19 @@ features in this release do **not** require another LLM or another large AI
 download.
 
 
+## v0.9.2 R12 Task-Based Workspaces
+
+The desktop navigation is now organized by what the user is doing instead of exposing one catch-all Live Session page:
+
+- **Online Class & Meetings** — selected meeting/call app + microphone, separate microphone test and selected-app audio test, speaker labels, monitoring, topic profile, recording, verification, and export tools.
+- **Livestreaming** — one selected application/window target, selected-app audio test, topic profile, recording, verification, and export tools.
+- **Interview Mode** — interview preparation/assist plus interview audio readiness, microphone/app tests, and interview capture controls.
+- **Vocabulary**, **Sessions**, and **Models** remain first-class areas.
+- **Settings** now contains Appearance, Transcription, Verification & Export, and Topic Profiles. The old Topics navigation item is now a Settings sub-area.
+
+Internal PortAudio microphone numbers remain hidden from the user-facing dropdown while still being retained internally for safe device resolution.
+
+
 ## Recorded-file button availability
 
 **Choose Video or Audio File** is now enabled whenever Live Scribe is idle.

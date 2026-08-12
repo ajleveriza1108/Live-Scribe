@@ -91,6 +91,11 @@ COLORS = {
 }
 
 
+WORKSPACE_MEETINGS = "Online Class & Meetings"
+WORKSPACE_LIVESTREAM = "Livestreaming"
+SESSION_WORKSPACES = (WORKSPACE_MEETINGS, WORKSPACE_LIVESTREAM)
+
+
 class ModernTabView(ctk.CTkTabview):
     """CTk tab view with the select(index) compatibility used by the controller."""
 
@@ -238,7 +243,7 @@ class _ModernBaseApp(_Controller):
         self.pages: dict[str, ctk.CTkFrame] = {}
         self.nav_buttons: dict[str, ctk.CTkButton] = {}
         self.text_widgets: list[tk.Text] = []
-        self.current_page = "Live Session"
+        self.current_page = WORKSPACE_MEETINGS
 
         self._configure_style()
         self._build_ui()
@@ -262,7 +267,7 @@ class _ModernBaseApp(_Controller):
         if not self.settings.model_name or selected_unavailable:
             self._show_page("Models")
         else:
-            self._show_page("Live Session")
+            self._show_page(WORKSPACE_MEETINGS)
 
     @staticmethod
     def _system_font_family() -> str:
@@ -281,7 +286,7 @@ class _ModernBaseApp(_Controller):
 
         self.sidebar = ctk.CTkFrame(
             self.root,
-            width=202,
+            width=232,
             corner_radius=0,
             fg_color=COLORS["sidebar"],
             border_width=0,
@@ -289,76 +294,86 @@ class _ModernBaseApp(_Controller):
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
         self.sidebar.grid_columnconfigure(0, weight=1)
-        self.sidebar.grid_rowconfigure(9, weight=1)
+        self.sidebar.grid_rowconfigure(13, weight=1)
 
         ctk.CTkLabel(
             self.sidebar,
             text="Live Scribe",
             font=ctk.CTkFont(family=self.font_family, size=22, weight="bold"),
             text_color=COLORS["text"],
-        ).grid(row=0, column=0, sticky="w", padx=18, pady=(20, 3))
+        ).grid(row=0, column=0, sticky="w", padx=18, pady=(18, 2))
         ctk.CTkLabel(
             self.sidebar,
             text="Offline AI transcription",
-            font=ctk.CTkFont(family=self.font_family, size=12),
+            font=ctk.CTkFont(family=self.font_family, size=11),
             text_color=COLORS["text_secondary"],
-        ).grid(row=1, column=0, sticky="w", padx=18, pady=(0, 16))
+        ).grid(row=1, column=0, sticky="w", padx=18, pady=(0, 12))
 
-        nav_items = (
-            ("Live Session", "●"),
-            ("Interview Mode", "◆"),
-            ("Vocabulary", "Aa"),
-            ("Topics", "◎"),
-            ("Sessions", "▤"),
-            ("Models", "↓"),
-            ("Settings", "⚙"),
+        nav_rows = (
+            ("WORKSPACES", None, None),
+            ("Online Class & Meetings", "●", WORKSPACE_MEETINGS),
+            ("Livestreaming", "◉", WORKSPACE_LIVESTREAM),
+            ("Interview Mode", "◆", "Interview Mode"),
+            ("LIBRARY", None, None),
+            ("Vocabulary", "Aa", "Vocabulary"),
+            ("Sessions", "▤", "Sessions"),
+            ("Models", "↓", "Models"),
+            ("SYSTEM", None, None),
+            ("Settings", "⚙", "Settings"),
         )
-        for index, (name, icon) in enumerate(nav_items, start=2):
-            button = ctk.CTkButton(
-                self.sidebar,
-                text=f"{icon}   {name}",
-                command=lambda page=name: self._show_page(page),
-                height=38,
-                corner_radius=8,
-                anchor="w",
-                fg_color="transparent",
-                hover_color=COLORS["surface_raised"],
-                text_color=COLORS["text_secondary"],
-                font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
-            )
-            button.grid(row=index, column=0, sticky="ew", padx=12, pady=2)
-            self.nav_buttons[name] = button
 
-        theme_holder = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        theme_holder.grid(row=10, column=0, sticky="sew", padx=14, pady=(8, 8))
-        theme_holder.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(
-            theme_holder,
-            text="Appearance",
-            text_color=COLORS["muted"],
-            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
-        ).grid(row=0, column=0, sticky="w", padx=4, pady=(0, 6))
-        self.theme_menu = ctk.CTkOptionMenu(
-            theme_holder,
-            variable=self.theme_var,
-            values=list(THEME_OPTIONS),
-            command=self._change_theme,
-            height=34,
-            corner_radius=8,
-            fg_color=COLORS["surface_raised"],
-            button_color=COLORS["surface_raised"],
-            button_hover_color=COLORS["border"],
-            text_color=COLORS["text"],
-            dropdown_fg_color=COLORS["surface_alt"],
-            dropdown_text_color=COLORS["text"],
-        )
-        self.theme_menu.grid(row=1, column=0, sticky="ew")
+        row = 2
+        for label, icon, page_name in nav_rows:
+            if page_name is None:
+                ctk.CTkLabel(
+                    self.sidebar,
+                    text=label,
+                    text_color=COLORS["muted"],
+                    font=ctk.CTkFont(
+                        family=self.font_family,
+                        size=9,
+                        weight="bold",
+                    ),
+                ).grid(
+                    row=row,
+                    column=0,
+                    sticky="w",
+                    padx=18,
+                    pady=(8 if row > 2 else 2, 3),
+                )
+            else:
+                button = ctk.CTkButton(
+                    self.sidebar,
+                    text=f"{icon}   {label}",
+                    command=lambda page=page_name: self._show_page(page),
+                    height=36,
+                    corner_radius=8,
+                    anchor="w",
+                    fg_color="transparent",
+                    hover_color=COLORS["surface_raised"],
+                    text_color=COLORS["text_secondary"],
+                    font=ctk.CTkFont(
+                        family=self.font_family,
+                        size=12,
+                        weight="bold",
+                    ),
+                )
+                button.grid(
+                    row=row,
+                    column=0,
+                    sticky="ew",
+                    padx=12,
+                    pady=1,
+                )
+                self.nav_buttons[page_name] = button
+            row += 1
+
         ctk.CTkLabel(
             self.sidebar,
             text="Version 0.9.2",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
-        ).grid(row=11, column=0, sticky="w", padx=18, pady=(0, 12))
+        ).grid(row=14, column=0, sticky="w", padx=18, pady=(4, 12))
 
         self.main_shell = ctk.CTkFrame(
             self.root,
@@ -408,18 +423,40 @@ class _ModernBaseApp(_Controller):
         return frame
 
     def _build_live_page(self) -> None:
-        page = self._page_frame("Live Session")
+        page = self._page_frame(WORKSPACE_MEETINGS)
+        self.pages[WORKSPACE_LIVESTREAM] = page
+        self.pages["Live Session"] = page
         page.grid_rowconfigure(3, weight=1)
         page.grid_columnconfigure(0, weight=1)
 
         header = ctk.CTkFrame(page, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 10))
         header.grid_columnconfigure(0, weight=1)
-        self._page_header(
-            header,
-            "Live Session",
-            "Transcribe live audio or choose an existing video/audio recording.",
+        self.workspace_title_var = tk.StringVar(value=WORKSPACE_MEETINGS)
+        self.workspace_subtitle_var = tk.StringVar(
+            value=(
+                "Capture one meeting/call app plus your microphone, test both audio "
+                "paths, and keep speaker-labelled notes."
+            )
         )
+        ctk.CTkLabel(
+            header,
+            textvariable=self.workspace_title_var,
+            text_color=COLORS["text"],
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=24,
+                weight="bold",
+            ),
+        ).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(
+            header,
+            textvariable=self.workspace_subtitle_var,
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11),
+            anchor="w",
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
         self.status_chip = ctk.CTkLabel(
             header,
             textvariable=self.status_var,
@@ -468,9 +505,10 @@ class _ModernBaseApp(_Controller):
         input_card = self._card(page, row=2, column=0, sticky="ew", padx=20, pady=(0, 8))
         self.input_card = input_card
         input_card.grid_columnconfigure(1, weight=1)
+        self.workspace_setup_title_var = tk.StringVar(value="Meeting audio setup")
         ctk.CTkLabel(
             input_card,
-            text="Input",
+            textvariable=self.workspace_setup_title_var,
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=14, pady=(10, 7))
@@ -502,6 +540,7 @@ class _ModernBaseApp(_Controller):
             padx=(14, 6),
             pady=(0, 10),
         )
+        self.audio_source_combo.grid_remove()
         self.microphone_combo = WholeClickableDropdown(
             input_card,
             variable=self.microphone_var,
@@ -518,9 +557,10 @@ class _ModernBaseApp(_Controller):
         )
         self.microphone_combo.grid(
             row=1,
-            column=1,
+            column=0,
+            columnspan=2,
             sticky="ew",
-            padx=6,
+            padx=(14, 6),
             pady=(0, 10),
         )
         self.detect_button = ctk.CTkButton(
@@ -561,7 +601,7 @@ class _ModernBaseApp(_Controller):
         self.topic_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=(14, 6), pady=(0, 4))
         self.manage_topics_button = ctk.CTkButton(
             input_card,
-            text="Manage Topics",
+            text="Topic Settings",
             command=lambda: self._show_page("Topics"),
             width=116,
             height=34,
@@ -787,8 +827,20 @@ class _ModernBaseApp(_Controller):
         self._page_header(
             header,
             "Topic Profiles",
-            "Give the current speech model helpful context—no extra LLM or model download required.",
+            "Settings sub-area for local recognition context—no extra LLM or model download required.",
         )
+        ctk.CTkButton(
+            header,
+            text="← Back to Settings",
+            command=lambda: self._show_page("Settings"),
+            width=128,
+            height=32,
+            fg_color="transparent",
+            hover_color=COLORS["surface_raised"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+        ).grid(row=0, column=1, rowspan=2, sticky="e")
 
         info = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
         info.grid_columnconfigure(0, weight=1)
@@ -1184,22 +1236,112 @@ class _ModernBaseApp(_Controller):
     def _build_settings_page(self) -> None:
         page = self._page_frame("Settings")
         page.grid_columnconfigure(0, weight=1)
+        page.grid_rowconfigure(1, weight=1)
+
         header = ctk.CTkFrame(page, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 18))
+        header.grid(row=0, column=0, sticky="ew", padx=24, pady=(20, 10))
         self._page_header(
             header,
             "Settings",
-            "Language, processing, transcript display, and WAV verification preferences.",
+            "Everything that changes how Live Scribe behaves is organized here.",
         )
 
-        session_card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
+        self.settings_tabs = ModernTabView(
+            page,
+            fg_color=COLORS["window"],
+            segmented_button_fg_color=COLORS["surface_raised"],
+            segmented_button_selected_color=COLORS["accent"],
+            segmented_button_selected_hover_color=COLORS["accent_hover"],
+            segmented_button_unselected_color=COLORS["surface_raised"],
+            segmented_button_unselected_hover_color=COLORS["border"],
+            text_color=COLORS["text"],
+            corner_radius=10,
+        )
+        self.settings_tabs.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=20,
+            pady=(0, 16),
+        )
+
+        general = self.settings_tabs.add("General")
+        transcription = self.settings_tabs.add("Transcription")
+        verification = self.settings_tabs.add("Verification & Export")
+        topics = self.settings_tabs.add("Topic Profiles")
+
+        for tab in (general, transcription, verification, topics):
+            tab.grid_columnconfigure(0, weight=1)
+
+        # General / appearance
+        appearance_card = ctk.CTkFrame(
+            general,
+            fg_color=COLORS["surface"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=12,
+        )
+        appearance_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
+        appearance_card.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            appearance_card,
+            text="Appearance",
+            text_color=COLORS["text"],
+            font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(
+            appearance_card,
+            text="Theme",
+            text_color=COLORS["text_secondary"],
+            font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
+        ).grid(row=1, column=0, sticky="w", padx=(16, 10), pady=(0, 14))
+        self.theme_menu = ctk.CTkOptionMenu(
+            appearance_card,
+            variable=self.theme_var,
+            values=list(THEME_OPTIONS),
+            command=self._change_theme,
+            height=34,
+            corner_radius=8,
+            fg_color=COLORS["surface_raised"],
+            button_color=COLORS["surface_raised"],
+            button_hover_color=COLORS["border"],
+            text_color=COLORS["text"],
+            dropdown_fg_color=COLORS["surface_alt"],
+            dropdown_text_color=COLORS["text"],
+        )
+        self.theme_menu.grid(row=1, column=1, sticky="ew", padx=(0, 16), pady=(0, 14))
+
+        ctk.CTkLabel(
+            general,
+            text=(
+                "Models and downloaded storage are managed from Models. Vocabulary "
+                "entries are managed from Vocabulary. Session files are managed from Sessions."
+            ),
+            text_color=COLORS["text_secondary"],
+            justify="left",
+            anchor="w",
+            wraplength=900,
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(row=1, column=0, sticky="ew", padx=16, pady=(6, 12))
+
+        # Transcription & processing
+        session_card = ctk.CTkFrame(
+            transcription,
+            fg_color=COLORS["surface"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=12,
+        )
+        session_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
         session_card.grid_columnconfigure((0, 1, 2), weight=1)
+
         ctk.CTkLabel(
             session_card,
-            text="Session settings",
+            text="Transcription & processing",
             text_color=COLORS["text"],
-            font=ctk.CTkFont(family=self.font_family, size=16, weight="bold"),
-        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=20, pady=(18, 12))
+            font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=16, pady=(14, 8))
+
         self.language_combo = self._modern_labeled_combo(
             session_card, 0, "Language", self.language_var, tuple(LANGUAGE_LABEL_TO_CODE)
         )
@@ -1209,31 +1351,29 @@ class _ModernBaseApp(_Controller):
         self.sensitivity_combo = self._modern_labeled_combo(
             session_card, 2, "Audio sensitivity", self.sensitivity_var, tuple(SENSITIVITY_THRESHOLDS)
         )
+
         self.live_noise_switch = ctk.CTkSwitch(
             session_card,
-            text="Light live noise reduction for transcription (optional)",
+            text="Light live noise reduction",
             variable=self.live_noise_reduction_var,
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
         )
         self.live_noise_switch.grid(
-            row=2, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 5)
+            row=2, column=0, columnspan=3, sticky="w", padx=16, pady=(2, 6)
         )
         ctk.CTkLabel(
             session_card,
             text=(
-                "Targets steady fan, air-conditioner, hum, and room hiss. "
-                "It processes only audio sent to transcription; the original WAV stays unchanged. "
-                "Turn it off when quiet or distant speech becomes less clear."
+                "Targets steady fan, air-conditioner, hum, and room hiss only in "
+                "audio sent to transcription. The original WAV remains unchanged."
             ),
             wraplength=880,
             justify="left",
             anchor="w",
             text_color=COLORS["text_secondary"],
-            font=ctk.CTkFont(family=self.font_family, size=11),
-        ).grid(
-            row=3, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 10)
-        )
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=3, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 10))
 
         self.smart_vad_switch = ctk.CTkSwitch(
             session_card,
@@ -1243,68 +1383,49 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text"],
         )
         self.smart_vad_switch.grid(
-            row=4, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 5)
-        )
-        ctk.CTkLabel(
-            session_card,
-            text=(
-                "Reuses Faster-Whisper's bundled offline Silero VAD to reject "
-                "clear silence before model inference, finish phrases sooner, "
-                "and reduce repeated or hallucinated silence text."
-            ),
-            wraplength=880,
-            justify="left",
-            anchor="w",
-            text_color=COLORS["text_secondary"],
-            font=ctk.CTkFont(family=self.font_family, size=11),
-        ).grid(
-            row=5, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 10)
+            row=4, column=0, columnspan=3, sticky="w", padx=16, pady=(0, 6)
         )
 
         self.memory_saver_switch = ctk.CTkSwitch(
             session_card,
-            text="Memory Saver (recommended for portable use)",
+            text="Memory Saver (recommended)",
             variable=self.memory_saver_var,
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
         )
         self.memory_saver_switch.grid(
-            row=6, column=0, columnspan=3, sticky="w", padx=20, pady=(0, 5)
-        )
-        ctk.CTkLabel(
-            session_card,
-            text=(
-                "Uses one inference worker, smaller queues, lighter live beam "
-                "search, model reuse, and automatic model release after idle. "
-                "The original recording and full WAV verification remain available."
-            ),
-            wraplength=880,
-            justify="left",
-            anchor="w",
-            text_color=COLORS["text_secondary"],
-            font=ctk.CTkFont(family=self.font_family, size=11),
-        ).grid(
-            row=7, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 18)
+            row=5, column=0, columnspan=3, sticky="w", padx=16, pady=(0, 14)
         )
 
-        verify_card = self._card(page, row=2, column=0, sticky="ew", padx=28, pady=(0, 14))
+        # Verification / export
+        verify_card = ctk.CTkFrame(
+            verification,
+            fg_color=COLORS["surface"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=12,
+        )
+        verify_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
         verify_card.grid_columnconfigure(0, weight=1)
+
         ctk.CTkLabel(
             verify_card,
-            text="WAV verification",
+            text="Verification & transcript output",
             text_color=COLORS["text"],
-            font=ctk.CTkFont(family=self.font_family, size=16, weight="bold"),
-        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 4))
+            font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
+        ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 5))
         ctk.CTkLabel(
             verify_card,
             text=(
-                "Stop saves the original WAV and live transcript. Verify from WAV runs the separate "
-                "full-recording accuracy pass when you choose."
+                "Stop saves the original WAV and live transcript. Verification is a "
+                "separate full-recording pass you start when needed."
             ),
-            wraplength=800,
-            justify="left",
             text_color=COLORS["text_secondary"],
-        ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 12))
+            justify="left",
+            wraplength=880,
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 10))
+
         self.noise_switch = ctk.CTkSwitch(
             verify_card,
             text="Reduce steady background noise during WAV verification",
@@ -1312,50 +1433,91 @@ class _ModernBaseApp(_Controller):
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
         )
-        self.noise_switch.grid(row=2, column=0, sticky="w", padx=20, pady=7)
+        self.noise_switch.grid(row=2, column=0, sticky="w", padx=16, pady=5)
+
         self.review_switch = ctk.CTkSwitch(
             verify_card,
-            text="Add grammar and diction comments (English, Filipino, and Taglish)",
+            text="Add grammar and diction comments",
             variable=self.review_var,
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
         )
-        self.review_switch.grid(row=3, column=0, sticky="w", padx=20, pady=7)
+        self.review_switch.grid(row=3, column=0, sticky="w", padx=16, pady=5)
+
         self.appendix_switch = ctk.CTkSwitch(
             verify_card,
-            text="Include the live transcript appendix in Word exports",
+            text="Include live transcript appendix in Word exports",
             variable=self.live_appendix_var,
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
         )
-        self.appendix_switch.grid(row=4, column=0, sticky="w", padx=20, pady=7)
+        self.appendix_switch.grid(row=4, column=0, sticky="w", padx=16, pady=5)
+
         self.timestamps_switch = ctk.CTkSwitch(
             verify_card,
-            text="Show timestamps in the transcript",
+            text="Show timestamps in transcript",
             variable=self.timestamps_var,
             command=self._redraw_all,
             progress_color=COLORS["accent"],
             text_color=COLORS["text"],
         )
-        self.timestamps_switch.grid(row=5, column=0, sticky="w", padx=20, pady=(7, 20))
+        self.timestamps_switch.grid(row=5, column=0, sticky="w", padx=16, pady=(5, 14))
 
-        language_card = self._card(page, row=3, column=0, sticky="ew", padx=28, pady=(0, 16))
-        language_card.grid_columnconfigure(0, weight=1)
+        # Topic profiles
+        topic_card = ctk.CTkFrame(
+            topics,
+            fg_color=COLORS["surface"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=12,
+        )
+        topic_card.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
+        topic_card.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
-            language_card,
-            text="Supported language modes",
+            topic_card,
+            text="Topic Profiles",
             text_color=COLORS["text"],
             font=ctk.CTkFont(family=self.font_family, size=15, weight="bold"),
-        ).grid(row=0, column=0, sticky="w", padx=20, pady=(18, 8))
+        ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 5))
         ctk.CTkLabel(
-            language_card,
+            topic_card,
             text=(
-                "English • Filipino / Tagalog • Taglish • Spanish • French • German • Italian • "
-                "Portuguese • Dutch\n\nThe same downloaded multilingual speech model handles all supported languages."
+                "Topic profiles give Faster-Whisper local context for expected names "
+                "and terminology. They do not add another AI model."
             ),
-            justify="left",
             text_color=COLORS["text_secondary"],
-        ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 20))
+            justify="left",
+            wraplength=850,
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=(0, 8))
+
+        self.settings_topic_combo = WholeClickableDropdown(
+            topic_card,
+            variable=self.topic_var,
+            values=list(self.topic_manager.names),
+            command=self._on_topic_selected,
+            state="readonly",
+            height=34,
+            corner_radius=8,
+            fg_color=COLORS["surface_alt"],
+            hover_color=COLORS["border"],
+            border_color=COLORS["border"],
+            border_width=1,
+            text_color=COLORS["text"],
+        )
+        self.settings_topic_combo.grid(row=2, column=0, sticky="ew", padx=16, pady=(0, 8))
+        ctk.CTkButton(
+            topic_card,
+            text="Manage Topic Profiles",
+            command=lambda: self._show_page("Topics"),
+            height=34,
+            fg_color=COLORS["surface_raised"],
+            hover_color=COLORS["border"],
+            text_color=COLORS["text"],
+        ).grid(row=3, column=0, sticky="w", padx=16, pady=(0, 14))
+
+        self.settings_tabs.set("General")
+
 
     def _modern_labeled_combo(
         self,
@@ -1426,18 +1588,94 @@ class _ModernBaseApp(_Controller):
     def _label_and_combo(self, parent, column, label, variable, values, width):
         return self._modern_labeled_combo(parent, column, label, variable, values)
 
+    def _preferred_session_workspace(self) -> str:
+        if self.current_page in SESSION_WORKSPACES:
+            return self.current_page
+        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+            return WORKSPACE_LIVESTREAM
+        return WORKSPACE_MEETINGS
+
+    def _configure_session_workspace(self, name: str) -> None:
+        if name == WORKSPACE_LIVESTREAM:
+            self.workspace_title_var.set(WORKSPACE_LIVESTREAM)
+            self.workspace_subtitle_var.set(
+                "Transcribe one selected application/window target, test its audio, "
+                "and exclude unrelated apps."
+            )
+            self.workspace_setup_title_var.set("Livestream source setup")
+            self.audio_source_var.set(AUDIO_SOURCE_APPLICATION)
+            self.application_audio_enabled_var.set(True)
+            self.settings.audio_source_mode = AUDIO_SOURCE_APPLICATION
+            self.settings.application_audio_enabled = True
+            self.start_button.configure(text="Start Livestream Transcription")
+            self.stop_button.configure(text="Stop & Save Stream WAV")
+            self.microphone_combo.grid_remove()
+            self.detect_button.grid_remove()
+            if hasattr(self, "input_test_panel"):
+                self.input_test_panel.grid_remove()
+        else:
+            self.workspace_title_var.set(WORKSPACE_MEETINGS)
+            self.workspace_subtitle_var.set(
+                "Capture one meeting/call app plus your microphone, test both audio "
+                "paths, and keep speaker-labelled notes."
+            )
+            self.workspace_setup_title_var.set("Meeting / online class setup")
+            self.audio_source_var.set(AUDIO_SOURCE_CONVERSATION)
+            self.application_audio_enabled_var.set(True)
+            self.settings.audio_source_mode = AUDIO_SOURCE_CONVERSATION
+            self.settings.application_audio_enabled = True
+            self.start_button.configure(text="Start Meeting / Class")
+            self.stop_button.configure(text="Stop & Save Meeting WAV")
+            self.microphone_combo.grid(
+                row=1,
+                column=0,
+                columnspan=2,
+                sticky="ew",
+                padx=(14, 6),
+                pady=(0, 10),
+            )
+            self.detect_button.grid(row=1, column=2, padx=(6, 14), pady=(0, 10))
+            if hasattr(self, "input_test_panel"):
+                self.input_test_panel.grid(
+                    row=5,
+                    column=0,
+                    columnspan=3,
+                    sticky="ew",
+                    padx=14,
+                    pady=(0, 8),
+                )
+
+        self.settings.save()
+        self._refresh_audio_inputs(auto_select=True)
+
     def _show_page(self, name: str) -> None:
-        frame = self.pages.get(name)
-        if frame is None:
-            return
+        requested_name = name
+        if name not in (*SESSION_WORKSPACES, "Interview Mode"):
+            if hasattr(self, "application_test_monitor") and self.application_test_monitor is not None:
+                self._stop_application_audio_test()
+            if hasattr(self, "input_monitor") and self.input_monitor is not None:
+                self._stop_input_test(restore_idle=False)
+        if name in SESSION_WORKSPACES:
+            frame = self.pages.get(WORKSPACE_MEETINGS)
+            if frame is None:
+                return
+            self._configure_session_workspace(name)
+        else:
+            frame = self.pages.get(name)
+            if frame is None:
+                return
+
         frame.tkraise()
-        self.current_page = name
+        self.current_page = requested_name
+
+        active_nav = "Settings" if requested_name == "Topics" else requested_name
         for page_name, button in self.nav_buttons.items():
-            active = page_name == name
+            active = page_name == active_nav
             button.configure(
                 fg_color=COLORS["surface_raised"] if active else "transparent",
                 text_color=COLORS["text"] if active else COLORS["text_secondary"],
             )
+
 
     def _change_theme(self, value: str) -> None:
         theme = value if value in THEME_OPTIONS else THEME_OLED
@@ -1489,6 +1727,8 @@ class _ModernBaseApp(_Controller):
             self.topic_combo.configure(values=names)
         if hasattr(self, "topic_editor_combo"):
             self.topic_editor_combo.configure(values=names)
+        if hasattr(self, "settings_topic_combo"):
+            self.settings_topic_combo.configure(values=names)
 
         selected = self.topic_manager.get(select_id or self.settings.topic_profile_id)
         if selected is None:
@@ -1879,6 +2119,13 @@ class _ModernBaseApp(_Controller):
             else:
                 self.release_model_button.configure(state="disabled")
 
+    def _workspace_start_button_text(self) -> str:
+        if self.current_page == WORKSPACE_LIVESTREAM:
+            return "Start Livestream Transcription"
+        if self.current_page == "Interview Mode":
+            return "Start Interview Capture"
+        return "Start Meeting / Class"
+
     def _set_controls_for_idle(self) -> None:
         super()._set_controls_for_idle()
         self._update_model_memory_ui()
@@ -2118,7 +2365,7 @@ class _ModernBaseApp(_Controller):
             "Speech quality ready",
             f"{friendly} finished downloading and is ready for offline transcription.",
         )
-        self._show_page("Live Session")
+        self._show_page(WORKSPACE_MEETINGS)
 
     def _show_export_menu(self) -> None:
         menu = tk.Menu(self.root, tearoff=False)
@@ -2134,12 +2381,21 @@ class _ModernBaseApp(_Controller):
     def _session_started(self, engine: WhisperEngine, session: LiveTranscriptionSession) -> None:
         super()._session_started(engine, session)
         self.recording_dot.configure(text_color=COLORS["danger"])
-        self._show_page("Live Session")
+        if hasattr(self, "interview_capture_button"):
+            self.interview_capture_button.configure(
+                text="Stop & Save Interview",
+                fg_color=COLORS["danger"],
+            )
 
     def _handle_session_event(self, event: SessionEvent) -> None:
         super()._handle_session_event(event)
         if event.kind == "finished":
             self.recording_dot.configure(text_color=COLORS["success"])
+            if hasattr(self, "interview_capture_button"):
+                self.interview_capture_button.configure(
+                    text="Start Interview Capture",
+                    fg_color=COLORS["success"],
+                )
 
     def _reset_document(self) -> None:
         super()._reset_document()
@@ -2147,7 +2403,11 @@ class _ModernBaseApp(_Controller):
 
     def _finalization_done(self, result: PostSessionResult) -> None:
         super()._finalization_done(result)
-        self._show_page("Live Session")
+        if hasattr(self, "interview_capture_button"):
+            self.interview_capture_button.configure(
+                text="Start Interview Capture",
+                fg_color=COLORS["success"],
+            )
 
     def _save_docx(self) -> None:
         if not self._ensure_content():
