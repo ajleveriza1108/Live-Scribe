@@ -210,8 +210,41 @@ class InterviewModeMixin:
             text_color=self._color("text"),
         ).pack(side="left", padx=3)
 
+        interview_actions = ctk.CTkFrame(audio, fg_color="transparent")
+        interview_actions.grid(
+            row=2,
+            column=0,
+            columnspan=2,
+            sticky="ew",
+            padx=14,
+            pady=(0, 10),
+        )
+        interview_actions.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            interview_actions,
+            text="Keep live words visible over the interview window while Live Scribe continues recording.",
+            text_color=self._color("text_secondary"),
+            justify="left",
+            anchor="w",
+            wraplength=620,
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 10))
+
+        self.interview_caption_button = ctk.CTkButton(
+            interview_actions,
+            text="Floating Captions (F11)",
+            command=self._toggle_caption_window,
+            height=32,
+            fg_color=self._color("surface_raised"),
+            hover_color=self._color("border"),
+            border_color=self._color("border"),
+            border_width=1,
+            text_color=self._color("text"),
+        )
+        self.interview_caption_button.grid(row=0, column=1, padx=(0, 6))
+
         self.interview_capture_button = ctk.CTkButton(
-            audio_buttons,
+            interview_actions,
             text="Start Interview Capture",
             command=self._toggle_interview_capture,
             height=32,
@@ -219,7 +252,7 @@ class InterviewModeMixin:
             hover_color=self._color("success"),
             text_color="#FFFFFF",
         )
-        self.interview_capture_button.pack(side="left", padx=(3, 0))
+        self.interview_capture_button.grid(row=0, column=2)
 
         body = ctk.CTkFrame(page, fg_color="transparent")
         body.grid(row=4, column=0, sticky="nsew", padx=28, pady=(0, 18))
@@ -525,6 +558,8 @@ class InterviewModeMixin:
         entry_index = len(self.document.live_entries) - 1
         role = self.interview_role_var.get() if self.interview_role_var else "Interviewer"
         updated = self.document.update_entry(entry_index, speaker=role, use_live=True)
+        if self.caption_window is not None:
+            self.caption_window.update(updated.text, updated.speaker)
         self._refresh_editor(select_last=True)
         self._refresh_interview_transcript()
         if role == "Interviewer" and looks_like_question(updated.text):

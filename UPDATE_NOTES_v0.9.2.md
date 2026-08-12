@@ -1,3 +1,11 @@
+## R13 — Responsive Session Controls + Interview Floating Captions
+
+- Prevents the expanded meeting/livestream setup panel from pushing the main action buttons below the visible window.
+- Converts the workspace setup card into a bounded vertical scroll area and adjusts its height with the Live Scribe window.
+- Keeps the transcript/action region usable on shorter displays instead of silently clipping the lower controls.
+- Adds a dedicated **Floating Captions (F11)** button to Interview Mode.
+- Re-applies the selected Interviewer / Interviewee speaker role to the caption overlay after each interview segment.
+- Preserves R11 clean microphone labels and all R12 task-based workspace behavior.
 
 ## R12 — Task-Based Workspaces
 

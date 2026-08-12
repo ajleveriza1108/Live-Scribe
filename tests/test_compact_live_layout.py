@@ -14,7 +14,8 @@ def test_live_page_uses_compact_readable_shell() -> None:
     assert "width=232," in source
     assert "size=24" in source
     assert 'header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 10))' in source
-    assert 'input_card = self._card(page, row=2, column=0, sticky="ew", padx=20, pady=(0, 8))' in source
+    assert "input_card = ctk.CTkScrollableFrame(" in source
+    assert 'input_card.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 8))' in source
     assert 'self.start_button.grid(row=0, column=0, padx=(10, 4), pady=8)' in source
 
 
@@ -47,3 +48,11 @@ def test_compact_layout_preserves_readable_body_text() -> None:
     # 9px is reserved for sidebar section labels, not body controls.
     assert 'size=9,' in ui_source
     assert 'size=10' in productivity_source
+
+
+def test_live_setup_is_scrollable_and_height_clamped_so_action_buttons_stay_reachable() -> None:
+    source = _source("src/taglish_transcriber/ui.py")
+    assert "page.bind(\"<Configure>\", self._update_live_setup_viewport, add=\"+\")" in source
+    assert "target_height = max(230, min(390, int(page_height) - 420))" in source
+    assert "self.input_card.configure(height=target_height)" in source
+    assert 'action_bar = self._card(page, row=4, column=0, sticky="ew", padx=20, pady=(0, 8))' in source

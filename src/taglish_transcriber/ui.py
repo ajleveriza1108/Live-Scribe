@@ -502,9 +502,21 @@ class _ModernBaseApp(_Controller):
         self.notice_message_label.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=7)
         self.notice_frame.bind("<Configure>", self._update_notice_wraplength)
 
-        input_card = self._card(page, row=2, column=0, sticky="ew", padx=20, pady=(0, 8))
+        input_card = ctk.CTkScrollableFrame(
+            page,
+            height=360,
+            fg_color=COLORS["surface"],
+            border_color=COLORS["border"],
+            border_width=1,
+            corner_radius=12,
+            scrollbar_fg_color=COLORS["surface"],
+            scrollbar_button_color=COLORS["border"],
+            scrollbar_button_hover_color=COLORS["surface_raised"],
+        )
+        input_card.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 8))
         self.input_card = input_card
         input_card.grid_columnconfigure(1, weight=1)
+        page.bind("<Configure>", self._update_live_setup_viewport, add="+")
         self.workspace_setup_title_var = tk.StringVar(value="Meeting audio setup")
         ctk.CTkLabel(
             input_card,
@@ -750,6 +762,17 @@ class _ModernBaseApp(_Controller):
             justify="left",
             font=ctk.CTkFont(family=self.font_family, size=11),
         ).grid(row=0, column=0, sticky="ew")
+
+    def _update_live_setup_viewport(self, event=None) -> None:
+        """Keep session controls reachable instead of letting setup push them below the window."""
+        if not hasattr(self, "input_card"):
+            return
+        page_height = getattr(event, "height", 0) or self.main_shell.winfo_height()
+        target_height = max(230, min(390, int(page_height) - 420))
+        try:
+            self.input_card.configure(height=target_height)
+        except tk.TclError:
+            pass
 
     def _build_vocabulary_page(self) -> None:
         page = self._page_frame("Vocabulary")

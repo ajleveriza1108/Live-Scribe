@@ -14,6 +14,15 @@ features in this release do **not** require another LLM or another large AI
 download.
 
 
+
+## v0.9.2 R13 Responsive Session Controls + Interview Floating Captions
+
+- The Online Class & Meetings / Livestreaming setup area is now vertically scrollable instead of expanding until the action buttons fall below the visible window.
+- The setup viewport automatically clamps to the current app height so Start, Stop, Verify, Floating Captions, export, and other session controls remain reachable on shorter displays.
+- Interview Mode now exposes **Floating Captions (F11)** beside the live interview controls.
+- Interview captions are refreshed after the Interviewer / Interviewee role is applied so the overlay uses the same speaker label as the Interview transcript.
+- Existing selected-app capture, microphone monitoring, R11 clean microphone labels, R12 workspace organization, recordings, sessions, and exports remain unchanged.
+
 ## v0.9.2 R12 Task-Based Workspaces
 
 The desktop navigation is now organized by what the user is doing instead of exposing one catch-all Live Session page:

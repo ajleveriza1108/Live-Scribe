@@ -32,3 +32,11 @@ def test_interview_page_has_audio_readiness_tools() -> None:
     assert "Interview audio readiness" in source
     assert "Test Interview App" in source
     assert "Start Interview Capture" in source
+
+
+def test_interview_mode_exposes_floating_captions_and_uses_interview_role_labels() -> None:
+    source = (ROOT / "src/taglish_transcriber/interview_ui.py").read_text(encoding="utf-8")
+    assert 'text="Floating Captions (F11)"' in source
+    assert "command=self._toggle_caption_window" in source
+    assert "self.caption_window.update(updated.text, updated.speaker)" in source
+    assert 'text="Start Interview Capture"' in source
