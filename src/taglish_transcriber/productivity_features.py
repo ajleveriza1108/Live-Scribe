@@ -21,6 +21,7 @@ from .caption_window import FloatingCaptionWindow
 from .config import (
     AUDIO_SOURCE_APPLICATION,
     AUDIO_SOURCE_CONVERSATION,
+    AUDIO_SOURCE_MICROPHONE,
     AUDIO_SOURCE_SYSTEM,
     GRAMMAR_REVIEW_LANGUAGE_LABELS,
     LANGUAGE_LABEL_TO_CODE,

@@ -51,6 +51,17 @@ set "ROOT_EXE=%APP_ROOT%\LiveScribe.exe"
 set "VENV_PYTHON=%APP_ROOT%\.venv\Scripts\python.exe"
 set "SOURCE_APP=%APP_ROOT%\app.py"
 set "SOURCE_SETUP=%APP_ROOT%\scripts\source_setup_windows.ps1"
+set "LOG_DIR=%APP_ROOT%\logs"
+set "STARTUP_LOG=%LOG_DIR%\startup.log"
+
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+> "%STARTUP_LOG%" echo ============================================================
+>>"%STARTUP_LOG%" echo Live Scribe startup log
+>>"%STARTUP_LOG%" echo Date: %DATE%
+>>"%STARTUP_LOG%" echo Time: %TIME%
+>>"%STARTUP_LOG%" echo App folder: %APP_ROOT%
+>>"%STARTUP_LOG%" echo ============================================================
+>>"%STARTUP_LOG%" echo.
 
 echo.
 echo Starting Live Scribe...
@@ -58,19 +69,19 @@ echo App folder: %APP_ROOT%
 echo.
 
 if exist "%PORTABLE_EXE%" (
-    "%PORTABLE_EXE%"
+    "%PORTABLE_EXE%" >>"%STARTUP_LOG%" 2>&1
     set "EXIT_CODE=%ERRORLEVEL%"
     goto :finished
 )
 
 if exist "%ROOT_EXE%" (
-    "%ROOT_EXE%"
+    "%ROOT_EXE%" >>"%STARTUP_LOG%" 2>&1
     set "EXIT_CODE=%ERRORLEVEL%"
     goto :finished
 )
 
 if exist "%VENV_PYTHON%" if exist "%SOURCE_APP%" (
-    "%VENV_PYTHON%" "%SOURCE_APP%"
+    "%VENV_PYTHON%" -X faulthandler "%SOURCE_APP%" >>"%STARTUP_LOG%" 2>&1
     set "EXIT_CODE=%ERRORLEVEL%"
     goto :finished
 )
@@ -104,7 +115,7 @@ if exist "%SOURCE_APP%" if exist "%SOURCE_SETUP%" (
     if exist "%VENV_PYTHON%" (
         echo.
         echo Starting Live Scribe with the prepared environment...
-        "%VENV_PYTHON%" "%SOURCE_APP%"
+        "%VENV_PYTHON%" -X faulthandler "%SOURCE_APP%" >>"%STARTUP_LOG%" 2>&1
         set "EXIT_CODE=%ERRORLEVEL%"
         goto :finished
     )
@@ -133,6 +144,15 @@ if not defined EXIT_CODE set "EXIT_CODE=0"
 if not "%EXIT_CODE%"=="0" (
     echo.
     echo Live Scribe closed with exit code %EXIT_CODE%.
+    echo Startup/crash log:
+    echo   %STARTUP_LOG%
+    echo.
+    echo Last log lines:
+    echo ------------------------------------------------------------
+    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass ^
+      -Command "if (Test-Path -LiteralPath '%STARTUP_LOG%') { Get-Content -LiteralPath '%STARTUP_LOG%' -Tail 80 }"
+    echo ------------------------------------------------------------
+    echo.
     echo Keep this window open when requesting support.
     echo.
     pause
