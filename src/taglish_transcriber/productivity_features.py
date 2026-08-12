@@ -20,6 +20,7 @@ from .audio import (
 from .caption_window import FloatingCaptionWindow
 from .config import (
     AUDIO_SOURCE_APPLICATION,
+    AUDIO_SOURCE_CONVERSATION,
     AUDIO_SOURCE_SYSTEM,
     GRAMMAR_REVIEW_LANGUAGE_LABELS,
     LANGUAGE_LABEL_TO_CODE,
@@ -47,7 +48,7 @@ from .storage_manager import (
     storage_items,
 )
 from .transcript import TranscriptDocument, TranscriptEntry, format_clock
-from .transcript_summary import summarize_entries
+from .transcript_summary import summarize_call_entries, summarize_entries
 from .ui_widgets import WholeClickableDropdown
 
 
@@ -307,7 +308,7 @@ class ProductivityFeaturesMixin:
             variable=self.application_audio_var,
             values=["No running application detected"],
             disabled_values=["No running application detected"],
-            command=self._on_audio_input_selected,
+            command=self._on_application_audio_selected,
             state="readonly",
             height=36,
             corner_radius=8,
@@ -356,6 +357,54 @@ class ProductivityFeaturesMixin:
             padx=(0, 12),
             pady=(0, 10),
         )
+
+        self.conversation_labels_frame = ctk.CTkFrame(
+            self.application_audio_frame,
+            fg_color="transparent",
+        )
+        self.conversation_labels_frame.grid(
+            row=2,
+            column=0,
+            columnspan=3,
+            sticky="ew",
+            padx=12,
+            pady=(0, 10),
+        )
+        self.conversation_labels_frame.grid_columnconfigure(1, weight=1)
+        self.conversation_labels_frame.grid_columnconfigure(3, weight=1)
+        ctk.CTkLabel(
+            self.conversation_labels_frame,
+            text="Remote speaker",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10, weight="bold"),
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.conversation_caller_entry = ctk.CTkEntry(
+            self.conversation_labels_frame,
+            textvariable=self.conversation_caller_label_var,
+            height=34,
+            corner_radius=8,
+            fg_color=self._color("surface_alt"),
+            border_color=self._color("border"),
+        )
+        self.conversation_caller_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
+        ctk.CTkLabel(
+            self.conversation_labels_frame,
+            text="My microphone",
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10, weight="bold"),
+        ).grid(row=0, column=2, sticky="w", padx=(0, 6))
+        self.conversation_me_entry = ctk.CTkEntry(
+            self.conversation_labels_frame,
+            textvariable=self.conversation_me_label_var,
+            height=34,
+            corner_radius=8,
+            fg_color=self._color("surface_alt"),
+            border_color=self._color("border"),
+        )
+        self.conversation_me_entry.grid(row=0, column=3, sticky="ew")
+        self.conversation_caller_entry.bind("<FocusOut>", self._save_conversation_labels)
+        self.conversation_me_entry.bind("<FocusOut>", self._save_conversation_labels)
+        self.conversation_labels_frame.grid_remove()
         self.application_audio_frame.grid_remove()
         ctk.CTkLabel(
             self.status_row,
@@ -442,7 +491,7 @@ class ProductivityFeaturesMixin:
 
         self._build_transcript_editor()
         self._build_summary_tab()
-        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+        if self.audio_source_var.get() in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}:
             self.application_audio_frame.grid()
         else:
             self.application_audio_frame.grid_remove()
@@ -474,7 +523,11 @@ class ProductivityFeaturesMixin:
                 parent=self.root,
             )
             return
-        result = summarize_entries(entries)
+        result = (
+            summarize_call_entries(entries)
+            if self.document.source_type == "conversation"
+            else summarize_entries(entries)
+        )
         self.summary_text.configure(state="normal")
         self.summary_text.delete("1.0", "end")
         self.summary_text.insert("1.0", result.render())
@@ -520,6 +573,7 @@ class ProductivityFeaturesMixin:
             self.input_monitor = AudioInputMonitor(
                 source_mode=self.audio_source_var.get(),
                 input_label=self.microphone_var.get(),
+                application_label=self.application_audio_var.get(),
                 microphone_index=self._microphone_index_for_test(),
                 application_enabled=self.application_audio_enabled_var.get(),
                 event_callback=(
@@ -527,7 +581,10 @@ class ProductivityFeaturesMixin:
                     self._threadsafe_input_test_level(token, payload)
                 ),
                 microphone_monitor_enabled=(
-                    self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                    self.audio_source_var.get() in {
+                        AUDIO_SOURCE_MICROPHONE,
+                        AUDIO_SOURCE_CONVERSATION,
+                    }
                     and self.microphone_listen_var.get()
                 ),
                 microphone_monitor_output_label=(
@@ -537,7 +594,13 @@ class ProductivityFeaturesMixin:
             )
             self.input_monitor.start()
         except Exception as exc:
+            failed_monitor = self.input_monitor
             self.input_monitor = None
+            if failed_monitor is not None:
+                try:
+                    failed_monitor.stop()
+                except Exception:
+                    pass
             self._input_test_auto_started_for_microphone_listen = False
             if auto_started_for_microphone_listen:
                 self.microphone_listen_var.set(False)
@@ -557,7 +620,7 @@ class ProductivityFeaturesMixin:
         self.audio_level_text_var.set("Listening for sound")
         if (
             self.microphone_listen_var.get()
-            and self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+            and self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}
         ):
             self.activity_var.set(
                 "Microphone listening is active. Use headphones to avoid "
@@ -572,9 +635,9 @@ class ProductivityFeaturesMixin:
 
     def _microphone_index_for_test(self):
         from .audio import parse_microphone_index
-        from .config import AUDIO_SOURCE_MICROPHONE
+        from .config import AUDIO_SOURCE_CONVERSATION, AUDIO_SOURCE_MICROPHONE
 
-        if self.audio_source_var.get() != AUDIO_SOURCE_MICROPHONE:
+        if self.audio_source_var.get() not in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}:
             return None
         return parse_microphone_index(self.microphone_var.get())
 
@@ -1086,13 +1149,22 @@ class ProductivityFeaturesMixin:
                     state="normal" if self.engine is not None else "disabled",
                 )
             else:
-                self.verify_wav_button.configure(
-                    text=(
-                        "Re-verify from WAV"
-                        if self.document.is_finalized
-                        else "Verify from WAV"
+                if self.document.source_type == "conversation":
+                    self.verify_wav_button.configure(
+                        text=(
+                            "Re-verify Call Sources"
+                            if self.document.is_finalized
+                            else "Verify Call Sources"
+                        )
                     )
-                )
+                else:
+                    self.verify_wav_button.configure(
+                        text=(
+                            "Re-verify from WAV"
+                            if self.document.is_finalized
+                            else "Verify from WAV"
+                        )
+                    )
 
         if hasattr(self, "input_test_button"):
             self.input_test_button.configure(
@@ -1122,17 +1194,26 @@ class ProductivityFeaturesMixin:
         if hasattr(self, "microphone_listen_switch"):
             mic_state = (
                 "normal"
-                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                if self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}
                 else "disabled"
             )
             self.microphone_listen_switch.configure(state=mic_state)
         if hasattr(self, "microphone_monitor_output_dropdown"):
             output_state = (
                 "readonly"
-                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                if self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}
                 else "disabled"
             )
             self.microphone_monitor_output_dropdown.configure(state=output_state)
+        for entry_name in ("conversation_caller_entry", "conversation_me_entry"):
+            if hasattr(self, entry_name):
+                getattr(self, entry_name).configure(
+                    state=(
+                        "normal"
+                        if self.audio_source_var.get() == AUDIO_SOURCE_CONVERSATION
+                        else "disabled"
+                    )
+                )
 
     def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
         super()._refresh_audio_inputs(auto_select=auto_select)
@@ -1140,7 +1221,7 @@ class ProductivityFeaturesMixin:
             return
 
         source_mode = self.audio_source_var.get()
-        if source_mode == AUDIO_SOURCE_APPLICATION:
+        if source_mode in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}:
             from .application_audio import (
                 application_audio_support,
                 list_running_application_targets,
@@ -1170,9 +1251,15 @@ class ProductivityFeaturesMixin:
                     labels[0],
                 )
                 self.application_audio_var.set(selected)
-                self.microphone_var.set(selected)
+                if source_mode == AUDIO_SOURCE_APPLICATION:
+                    self.microphone_var.set(selected)
             self.application_audio_frame.grid()
-            self.microphone_monitor_frame.grid_remove()
+            if source_mode == AUDIO_SOURCE_CONVERSATION:
+                self.conversation_labels_frame.grid()
+                self.microphone_monitor_frame.grid()
+            else:
+                self.conversation_labels_frame.grid_remove()
+                self.microphone_monitor_frame.grid_remove()
         elif source_mode == AUDIO_SOURCE_MICROPHONE:
             outputs = [
                 output
@@ -1204,6 +1291,7 @@ class ProductivityFeaturesMixin:
             )
             self.microphone_monitor_frame.grid()
             self.application_audio_frame.grid_remove()
+            self.conversation_labels_frame.grid_remove()
             if (
                 self.microphone_listen_var.get()
                 and self.session is None
@@ -1213,6 +1301,7 @@ class ProductivityFeaturesMixin:
         else:
             self.application_audio_frame.grid_remove()
             self.microphone_monitor_frame.grid_remove()
+            self.conversation_labels_frame.grid_remove()
 
     # ------------------------------------------------------------------
     # Live session, pause, audio meter, recovery
@@ -1244,8 +1333,19 @@ class ProductivityFeaturesMixin:
     def _session_started(self, engine, session) -> None:
         super()._session_started(engine, session)
         self.document.title = self.pending_session_title or self.document.title
-        self.document.source_type = "live"
+        self.document.source_type = (
+            "conversation"
+            if self.audio_source_var.get() == AUDIO_SOURCE_CONVERSATION
+            else "live"
+        )
         self.document.recording_path = session.recording_path
+        self.document.source_recordings = dict(session.source_recordings)
+        self.document.source_offsets = dict(session.source_offsets)
+        if self.document.source_type == "conversation":
+            self.document.speaker_labels = {
+                "caller": self.conversation_caller_label_var.get().strip() or "Caller",
+                "me": self.conversation_me_label_var.get().strip() or "Me",
+            }
         self.document.language = self.language_var.get()
         self.document.topic = self.topic_var.get()
         self.document.model = self.model_var.get()
@@ -1321,6 +1421,8 @@ class ProductivityFeaturesMixin:
             self.audio_level_text_var.set("Paused")
             return
 
+        speaker = " ".join(str(payload.get("speaker", "")).strip().split())
+        prefix = f"{speaker}: " if speaker else ""
         rms = max(0.0, float(payload.get("rms", 0.0)))
         peak = max(0.0, float(payload.get("peak", 0.0)))
         quiet_seconds = max(0.0, float(payload.get("quiet_seconds", 0.0)))
@@ -1329,9 +1431,9 @@ class ProductivityFeaturesMixin:
         self.audio_level_var.set(level)
 
         if clipping:
-            self.audio_level_text_var.set("Too loud / clipping")
+            self.audio_level_text_var.set(prefix + "Too loud / clipping")
         elif quiet_seconds >= 8:
-            self.audio_level_text_var.set("No audio detected")
+            self.audio_level_text_var.set(prefix + "No audio detected")
             if not self.no_audio_warned:
                 self.no_audio_warned = True
                 self.activity_var.set(
@@ -1339,12 +1441,12 @@ class ProductivityFeaturesMixin:
                     "Check the selected input, meeting output, microphone mute, and volume."
                 )
         elif rms < 0.003:
-            self.audio_level_text_var.set("Very quiet")
+            self.audio_level_text_var.set(prefix + "Very quiet")
         elif peak > 0.75:
-            self.audio_level_text_var.set("Strong signal")
+            self.audio_level_text_var.set(prefix + "Strong signal")
             self.no_audio_warned = False
         else:
-            self.audio_level_text_var.set("Good signal")
+            self.audio_level_text_var.set(prefix + "Good signal")
             self.no_audio_warned = False
 
     def _reset_document(self) -> None:
@@ -1742,7 +1844,11 @@ class ProductivityFeaturesMixin:
             return
         self.session_tree.delete(*self.session_tree.get_children())
         for summary in summaries:
-            source = "File" if summary.source_type == "imported" else "Live"
+            source = (
+                "File"
+                if summary.source_type == "imported"
+                else ("Call" if summary.source_type == "conversation" else "Live")
+            )
             self.session_tree.insert(
                 "",
                 "end",
@@ -1916,31 +2022,34 @@ class ProductivityFeaturesMixin:
         if hasattr(self, "application_audio_switch"):
             state = (
                 "normal"
-                if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION
+                if self.audio_source_var.get() in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}
                 else "disabled"
             )
             self.application_audio_switch.configure(state=state)
         if hasattr(self, "application_audio_dropdown"):
             state = (
                 "readonly"
-                if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION
+                if self.audio_source_var.get() in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}
                 else "disabled"
             )
             self.application_audio_dropdown.configure(state=state)
         if hasattr(self, "microphone_listen_switch"):
             mic_state = (
                 "normal"
-                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                if self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}
                 else "disabled"
             )
             self.microphone_listen_switch.configure(state=mic_state)
         if hasattr(self, "microphone_monitor_output_dropdown"):
             output_state = (
                 "readonly"
-                if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                if self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}
                 else "disabled"
             )
             self.microphone_monitor_output_dropdown.configure(state=output_state)
+        for entry_name in ("conversation_caller_entry", "conversation_me_entry"):
+            if hasattr(self, entry_name):
+                getattr(self, entry_name).configure(state="disabled")
 
     def _set_controls_for_finalizing(self) -> None:
         self._stop_input_test()

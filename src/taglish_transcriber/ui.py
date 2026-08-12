@@ -21,6 +21,7 @@ from .audio import (
 )
 from .config import (
     AUDIO_SOURCE_APPLICATION,
+    AUDIO_SOURCE_CONVERSATION,
     AUDIO_SOURCE_MICROPHONE,
     AUDIO_SOURCE_OPTIONS,
     AUDIO_SOURCE_SYSTEM,
@@ -188,6 +189,12 @@ class _ModernBaseApp(_Controller):
         self.application_audio_enabled_var = tk.BooleanVar(
             value=self.settings.application_audio_enabled
         )
+        self.conversation_caller_label_var = tk.StringVar(
+            value=self.settings.conversation_caller_label
+        )
+        self.conversation_me_label_var = tk.StringVar(
+            value=self.settings.conversation_me_label
+        )
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
         self.timestamps_var = tk.BooleanVar(value=self.settings.include_timestamps)
@@ -342,7 +349,7 @@ class _ModernBaseApp(_Controller):
         self.theme_menu.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(
             self.sidebar,
-            text="Version 0.9.1",
+            text="Version 0.9.2",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
         ).grid(row=11, column=0, sticky="w", padx=22, pady=(0, 18))
@@ -463,7 +470,9 @@ class _ModernBaseApp(_Controller):
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(14, 10))
         app_audio_ready, _app_audio_reason = application_audio_support()
         source_disabled = (
-            [] if app_audio_ready else [AUDIO_SOURCE_APPLICATION]
+            []
+            if app_audio_ready
+            else [AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION]
         )
         self.audio_source_combo = WholeClickableDropdown(
             input_card,

@@ -525,6 +525,137 @@ def recover_rolling_recording(path: Path) -> bool:
         return False
 
 
+def _read_pcm16_mono_chunk(wav_file, frames: int) -> np.ndarray:
+    payload = wav_file.readframes(max(1, int(frames)))
+    if not payload:
+        return np.empty(0, dtype=np.float32)
+    channels = max(1, int(wav_file.getnchannels()))
+    sample_width = int(wav_file.getsampwidth())
+    if sample_width != 2:
+        raise RuntimeError("Conversation WAV mixing supports 16-bit PCM source recordings.")
+    samples = np.frombuffer(payload, dtype="<i2").astype(np.float32) / 32768.0
+    usable = samples.size - (samples.size % channels)
+    if usable <= 0:
+        return np.empty(0, dtype=np.float32)
+    frames_array = samples[:usable].reshape(-1, channels)
+    if channels == 1:
+        return frames_array[:, 0]
+    return frames_array.mean(axis=1, dtype=np.float32)
+
+
+def mix_conversation_wavs(
+    caller_path: Path | None,
+    me_path: Path | None,
+    output_path: Path,
+    *,
+    offsets: dict[str, float] | None = None,
+    target_rate: int = TARGET_SAMPLE_RATE,
+) -> Path:
+    """Create a bounded-memory mono conversation WAV from two source WAVs.
+
+    Caller and microphone recordings remain separate. The combined file exists
+    mainly for playback and a conventional full-session verification path.
+    Mixing is processed one second at a time so a long call does not need to be
+    loaded into RAM. Small capture-start offsets are preserved with leading
+    silence.
+    """
+
+    sources = {
+        "caller": caller_path if caller_path and caller_path.is_file() else None,
+        "me": me_path if me_path and me_path.is_file() else None,
+    }
+    if not any(sources.values()):
+        raise RuntimeError("No Caller or Me WAV source was available to combine.")
+
+    offsets = offsets or {}
+    readers: dict[str, object] = {}
+    rates: dict[str, int] = {}
+    pending_silence = {
+        key: max(0, int(round(float(offsets.get(key, 0.0)) * target_rate)))
+        for key in sources
+    }
+
+    try:
+        for key, path in sources.items():
+            if path is None:
+                continue
+            reader = wave.open(str(path), "rb")
+            if reader.getsampwidth() != 2:
+                reader.close()
+                raise RuntimeError(f"{key.title()} recording is not 16-bit PCM WAV.")
+            readers[key] = reader
+            rates[key] = int(reader.getframerate())
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output_path.with_suffix(output_path.suffix + ".mixing")
+        with wave.open(str(temporary), "wb") as output:
+            output.setnchannels(1)
+            output.setsampwidth(2)
+            output.setframerate(target_rate)
+
+            while True:
+                blocks: dict[str, np.ndarray] = {}
+                any_data = False
+                for key in ("caller", "me"):
+                    reader = readers.get(key)
+                    if reader is None:
+                        blocks[key] = np.empty(0, dtype=np.float32)
+                        continue
+
+                    silence = min(target_rate, pending_silence.get(key, 0))
+                    pending_silence[key] = max(0, pending_silence.get(key, 0) - silence)
+                    remaining = target_rate - silence
+                    if remaining <= 0:
+                        block = np.zeros(target_rate, dtype=np.float32)
+                        any_data = True
+                    else:
+                        source_frames = max(1, int(round(remaining * rates[key] / target_rate)))
+                        raw = _read_pcm16_mono_chunk(reader, source_frames)
+                        converted = (
+                            resample_linear(raw, rates[key], target_rate)
+                            if raw.size
+                            else np.empty(0, dtype=np.float32)
+                        )
+                        if silence:
+                            block = np.concatenate((np.zeros(silence, dtype=np.float32), converted))
+                        else:
+                            block = converted
+                        if block.size:
+                            any_data = True
+                    blocks[key] = block
+
+                if not any_data:
+                    break
+
+                length = max((block.size for block in blocks.values()), default=0)
+                if length <= 0:
+                    break
+                mixed = np.zeros(length, dtype=np.float32)
+                active = 0
+                for block in blocks.values():
+                    if block.size == 0:
+                        continue
+                    active += 1
+                    mixed[: block.size] += block
+                if active > 1:
+                    # Soft normalize only when both sides overlap. Single-sided
+                    # speech keeps its original level.
+                    peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+                    if peak > 0.98:
+                        mixed *= 0.98 / peak
+                pcm = (np.clip(mixed, -1.0, 1.0) * 32767.0).astype("<i2")
+                output.writeframesraw(pcm.tobytes())
+
+        temporary.replace(output_path)
+        return output_path
+    finally:
+        for reader in readers.values():
+            try:
+                reader.close()
+            except Exception:
+                pass
+
+
 class WavRecorder(threading.Thread):
     """Write crash-contained WAV parts and combine them on a normal stop."""
 
@@ -1474,6 +1605,7 @@ class AudioInputMonitor:
         *,
         source_mode: str,
         input_label: str,
+        application_label: str = "",
         microphone_index: int | None,
         application_enabled: bool,
         event_callback: Callable[[dict[str, Any]], None],
@@ -1482,6 +1614,7 @@ class AudioInputMonitor:
     ) -> None:
         self.source_mode = source_mode
         self.input_label = input_label
+        self.application_label = application_label or input_label
         self.microphone_index = microphone_index
         self.application_enabled = application_enabled
         self.event_callback = event_callback
@@ -1501,7 +1634,7 @@ class AudioInputMonitor:
         self._stop_lock = threading.Lock()
         self._stopped = False
 
-    def _emit(self, samples: np.ndarray) -> None:
+    def _emit(self, samples: np.ndarray, *, source: str = "microphone") -> None:
         now = time.monotonic()
         if now - self._last_emit < 0.12:
             return
@@ -1519,25 +1652,32 @@ class AudioInputMonitor:
                 "quiet_seconds": 0.0,
                 "paused": False,
                 "input_test": True,
+                "source": source,
+                "speaker": "Me" if source == "microphone" else "Caller",
             }
         )
 
     def start(self) -> None:
-        from .config import AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_SYSTEM
+        from .config import (
+            AUDIO_SOURCE_APPLICATION,
+            AUDIO_SOURCE_CONVERSATION,
+            AUDIO_SOURCE_SYSTEM,
+        )
 
         self._stop_event.clear()
-        if self.source_mode == AUDIO_SOURCE_APPLICATION:
+        if self.source_mode in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}:
             queue_stub: queue.Queue[AudioBlock | None] = queue.Queue(maxsize=2)
             self._app_capture = ApplicationAudioCapture(
                 queue_stub,
-                self.input_label,
+                self.application_label,
                 TEMP_DIR / "input-test-unused.wav",
                 enabled=self.application_enabled,
                 event_callback=self._on_app_event,
                 monitor_only=True,
             )
             self._app_capture.start()
-            return
+            if self.source_mode == AUDIO_SOURCE_APPLICATION:
+                return
 
         if self.source_mode == AUDIO_SOURCE_SYSTEM:
             info, source = resolve_system_audio_source(self.input_label)
@@ -1610,6 +1750,8 @@ class AudioInputMonitor:
         if kind == "audio_level" and isinstance(payload, dict):
             payload = dict(payload)
             payload["input_test"] = True
+            payload["source"] = "caller"
+            payload["speaker"] = "Caller"
             self.event_callback(payload)
 
     def _system_loop(self) -> None:

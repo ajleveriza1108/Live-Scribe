@@ -169,3 +169,131 @@ def summarize_entries(entries: Iterable[TranscriptEntry], max_points: int = 6) -
         decisions=decisions,
         formatted_transcript=_formatted_transcript(entry_list),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class CallSummary:
+    caller_or_contact: tuple[str, ...]
+    reason_for_call: tuple[str, ...]
+    contact_details: tuple[str, ...]
+    appointment_or_schedule: tuple[str, ...]
+    action_required: tuple[str, ...]
+    follow_up: tuple[str, ...]
+    key_points: tuple[str, ...]
+    formatted_transcript: str
+
+    def render(self) -> str:
+        sections = ["CALL / CONVERSATION NOTES", ""]
+        fields = (
+            ("CALLER / CONTACT", self.caller_or_contact, "No explicit name detected."),
+            ("REASON FOR CALL", self.reason_for_call, "No explicit reason detected."),
+            ("CONTACT DETAILS", self.contact_details, "No explicit contact details detected."),
+            ("APPOINTMENT / SCHEDULE", self.appointment_or_schedule, "No explicit appointment or schedule detected."),
+            ("ACTION REQUIRED", self.action_required, "No explicit action item detected."),
+            ("FOLLOW-UP", self.follow_up, "No explicit follow-up detected."),
+            ("KEY POINTS", self.key_points, "No key points detected."),
+        )
+        for heading, values, fallback in fields:
+            sections.append(heading)
+            sections.extend([f"• {value}" for value in values] or [f"• {fallback}"])
+            sections.append("")
+        sections.extend(["SPEAKER-LABELLED TRANSCRIPT", "", self.formatted_transcript])
+        return "\n".join(sections).strip() + "\n"
+
+
+def _unique_sentences(values: Iterable[str], limit: int = 8) -> tuple[str, ...]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        clean = _clean_sentence(value)
+        key = clean.casefold()
+        if not clean or key in seen:
+            continue
+        seen.add(key)
+        output.append(clean)
+        if len(output) >= limit:
+            break
+    return tuple(output)
+
+
+def summarize_call_entries(entries: Iterable[TranscriptEntry]) -> CallSummary:
+    """Create deterministic offline call notes without an LLM.
+
+    The extractor intentionally keeps the original spoken sentences rather than
+    inventing missing values. It is useful for reception, VA, customer-service,
+    scheduling, and interview calls while remaining completely local.
+    """
+
+    entry_list = list(entries)
+    sentences = [
+        (entry.speaker.strip() or "Speaker", _clean_sentence(entry.text))
+        for entry in entry_list
+        if _clean_sentence(entry.text)
+    ]
+
+    name_patterns = (
+        r"\bmy name is\b",
+        r"\bthis is\b",
+        r"\bmy name's\b",
+        r"\bspeaking\b",
+    )
+    reason_patterns = (
+        r"\bcalling (?:about|regarding|to|for)\b",
+        r"\bcall(?:ing)? in regards? to\b",
+        r"\bthe reason (?:for|i'm calling)\b",
+        r"\bi need (?:help|to|an?|some)\b",
+        r"\bi'm enquiring\b",
+        r"\bi am enquiring\b",
+    )
+    appointment_patterns = (
+        r"\bappointment\b",
+        r"\bbooking\b",
+        r"\bschedule\b",
+        r"\breschedule\b",
+        r"\bcancel(?:lation|led|ing)?\b",
+        r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+        r"\b(?:today|tomorrow|next week|this week)\b",
+        r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b",
+    )
+    follow_patterns = (
+        r"\bfollow[ -]?up\b",
+        r"\bcall (?:you|them|him|her) back\b",
+        r"\bget back to\b",
+        r"\bsend (?:you|them|him|her)\b",
+        r"\bemail (?:you|them|him|her)\b",
+        r"\bconfirm(?:ation)?\b",
+    )
+    contact_pattern = re.compile(
+        r"(?:\b(?:\+?61|0)\s*\d[\d\s-]{7,}\b)|"
+        r"(?:\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b)|"
+        r"(?:\b(?:phone|mobile|email|e-mail|postcode|address)\b)",
+        flags=re.IGNORECASE,
+    )
+
+    def matching(patterns: tuple[str, ...]) -> tuple[str, ...]:
+        return _unique_sentences(
+            text
+            for _speaker, text in sentences
+            if any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+        )
+
+    contact_details = _unique_sentences(
+        text for _speaker, text in sentences if contact_pattern.search(text)
+    )
+    action_required = _unique_sentences(
+        text
+        for _speaker, text in sentences
+        if any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in ACTION_PATTERNS)
+    )
+
+    general = summarize_entries(entry_list, max_points=6)
+    return CallSummary(
+        caller_or_contact=matching(name_patterns),
+        reason_for_call=matching(reason_patterns),
+        contact_details=contact_details,
+        appointment_or_schedule=matching(appointment_patterns),
+        action_required=action_required,
+        follow_up=matching(follow_patterns),
+        key_points=general.key_points,
+        formatted_transcript=_formatted_transcript(entry_list),
+    )

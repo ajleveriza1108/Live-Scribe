@@ -212,3 +212,15 @@ Before publishing:
 - Run `python scripts/repository_preflight.py`.
 - Confirm no hardware report, first-run marker, models, recordings, exports, or session databases are tracked.
 - Confirm source CI passes on Windows/Linux/macOS.
+
+## v0.9.2 Call Mode validation
+
+- Use a physical Windows PC with the ApplicationLoopback helper installed.
+- Test Zoom, Teams, Viber, Messenger, Chrome/Edge Google Meet, and one media app.
+- Play unrelated audio in another application and confirm it is excluded.
+- Speak through the microphone while the remote application plays speech and confirm Caller/Me labels.
+- Confirm Caller, Me, and combined WAV files are created.
+- Run Verify Call Sources and confirm labels are preserved.
+- Test plain English across several accents and countries.
+- Test optional US, UK, Australian, Canadian, Indian, and Filipino English locale profiles with names, addresses, dates, phone numbers, and regional terms.
+- Compare RAM against application-only mode and confirm only one speech model instance is loaded.

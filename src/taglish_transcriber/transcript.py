@@ -80,6 +80,7 @@ def _entry_from_segment(segment: TranscriptSegment) -> TranscriptEntry:
         start=segment.start,
         end=max(segment.start, segment.end),
         text=" ".join(segment.text.strip().split()),
+        speaker=" ".join(segment.speaker.strip().split()),
         detected_language=segment.detected_language,
         language_probability=segment.language_probability,
         average_log_probability=segment.average_log_probability,
@@ -104,6 +105,9 @@ class TranscriptDocument:
         self.markers: list[TranscriptMarker] = []
         self.recording_path: Path | None = None
         self.enhanced_recording_path: Path | None = None
+        self.source_recordings: dict[str, Path] = {}
+        self.source_offsets: dict[str, float] = {}
+        self.speaker_labels: dict[str, str] = {}
         self.created_at = datetime.now().isoformat(timespec="seconds")
         self.updated_at = self.created_at
         self.language = ""
@@ -133,6 +137,9 @@ class TranscriptDocument:
         self.markers.clear()
         self.recording_path = None
         self.enhanced_recording_path = None
+        self.source_recordings.clear()
+        self.source_offsets.clear()
+        self.speaker_labels.clear()
         self.touch()
 
     def add(self, segment: TranscriptSegment) -> TranscriptEntry | None:
@@ -353,6 +360,11 @@ class TranscriptDocument:
             "markers": [asdict(marker) for marker in self.markers],
             "recording_path": _serialize_path(self.recording_path),
             "enhanced_recording_path": _serialize_path(self.enhanced_recording_path),
+            "source_recordings": {
+                key: _serialize_path(path) for key, path in self.source_recordings.items()
+            },
+            "source_offsets": dict(self.source_offsets),
+            "speaker_labels": dict(self.speaker_labels),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "language": self.language,
@@ -392,6 +404,26 @@ class TranscriptDocument:
         enhanced = str(raw.get("enhanced_recording_path") or "").strip()
         document.recording_path = _restore_path(recording)
         document.enhanced_recording_path = _restore_path(enhanced)
+        raw_source_recordings = raw.get("source_recordings", {})
+        if isinstance(raw_source_recordings, dict):
+            for key, value in raw_source_recordings.items():
+                restored = _restore_path(str(value or ""))
+                if restored is not None:
+                    document.source_recordings[str(key)] = restored
+        raw_offsets = raw.get("source_offsets", {})
+        if isinstance(raw_offsets, dict):
+            for key, value in raw_offsets.items():
+                try:
+                    document.source_offsets[str(key)] = max(0.0, float(value))
+                except (TypeError, ValueError):
+                    pass
+        raw_labels = raw.get("speaker_labels", {})
+        if isinstance(raw_labels, dict):
+            document.speaker_labels = {
+                str(key): " ".join(str(value).strip().split())
+                for key, value in raw_labels.items()
+                if str(value).strip()
+            }
         document.created_at = str(raw.get("created_at") or document.created_at)
         document.updated_at = str(raw.get("updated_at") or document.updated_at)
         document.language = str(raw.get("language") or "")

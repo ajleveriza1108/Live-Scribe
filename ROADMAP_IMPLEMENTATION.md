@@ -13,6 +13,17 @@
 - ApplicationLoopback helper workflow now uploads an artifact and a
   local PowerShell builder is included.
 
+
+## v0.9.2 — Call / Conversation Mode — implemented
+
+- Simultaneous selected-app + microphone capture on Windows.
+- Independent bounded queues and sidecar WAV recordings.
+- One shared Whisper model/transcription worker for lower RAM.
+- Editable Caller / Me labels propagated through TXT, DOCX, CSV, SRT, VTT, Markdown, captions, and session library.
+- Source-aware `Verify Call Sources`.
+- Global English remains region-neutral, with optional US, UK, Australian, Canadian, Indian, and Filipino locale recognition hints.
+- Deterministic offline call notes.
+
 ## v0.10.0 — Built-in offline LLM — next
 
 - Platform-specific llama.cpp runtime manager.

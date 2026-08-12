@@ -1,6 +1,6 @@
 # Live Scribe
 
-**Version 0.9.1**
+**Version 0.9.2**
 
 Live Scribe is a portable, offline transcription application for:
 
@@ -180,6 +180,30 @@ recheck.
 
 
 
+
+
+## v0.9.2 Call / Conversation Mode + Global English Profiles
+
+### Two-source call transcription on Windows
+
+`Call / conversation — app + microphone` captures two independent sources at the same time:
+
+- **Caller** — audio from one selected Windows application/process tree such as Zoom, Teams, Viber, Messenger, Chrome/Edge calls, Google Meet, webinars, or another supported app.
+- **Me** — the selected microphone.
+
+The two streams use separate bounded audio and speech queues but share **one Faster-Whisper model and one transcription worker**, preserving the Memory Saver design. Live transcript entries are tagged with editable speaker labels.
+
+Live Scribe saves three local WAV files for a call: the Caller source, the microphone source, and a bounded-memory combined conversation WAV. `Verify Call Sources` re-transcribes the two original source recordings separately, reapplies their speaker labels, and merges them by timestamp.
+
+Windows application capture still isolates a process tree rather than guaranteeing a single browser tab. Keep unrelated tabs muted during important browser calls.
+
+### Global English and optional accent / locale hints
+
+The normal **English** mode remains region-neutral and is intended for a wide range of English accents. Optional English presets are available for US, UK, Australian, Canadian, Indian, and Filipino English. Every preset still uses the same English Whisper path (`en`) and does not download another speech model. Locale presets only add light recognition context for region-specific spelling or vocabulary; use plain English when the caller's accent or region is unknown or mixed.
+
+### Offline call notes
+
+For conversation sessions, **Summarize & Format** switches to a deterministic local call-notes layout with Caller/Contact, Reason for Call, Contact Details, Appointment/Schedule, Action Required, Follow-up, Key Points, and a speaker-labelled transcript. Missing information is left as not detected instead of invented.
 
 ## v0.9.1 repository safety and continuous testing
 
@@ -713,7 +737,7 @@ Use `start_macos.sh` on macOS.
 Current source test result:
 
 ```text
-129 passed
+147 passed
 ```
 
 A real release still requires physical testing of:

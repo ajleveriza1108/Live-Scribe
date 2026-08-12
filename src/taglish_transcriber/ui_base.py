@@ -7,6 +7,7 @@ import sys
 import threading
 import tkinter as tk
 from pathlib import Path
+from dataclasses import replace
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .audio import (
@@ -26,6 +27,7 @@ from .application_audio import (
 )
 from .config import (
     AUDIO_SOURCE_APPLICATION,
+    AUDIO_SOURCE_CONVERSATION,
     AUDIO_SOURCE_MICROPHONE,
     AUDIO_SOURCE_OPTIONS,
     AUDIO_SOURCE_SYSTEM,
@@ -41,6 +43,7 @@ from .config import (
     model_short_description,
     model_size_label,
     SENSITIVITY_THRESHOLDS,
+    language_priority_terms,
 )
 from .dictionary_engine import VocabularyManager
 from .models import (
@@ -56,6 +59,7 @@ from .models import (
 from .paths import EXPORT_DIR, RECORDING_DIR, ensure_app_directories, new_recording_path
 from .portable import cleanup_stale_temp_files
 from .postprocess import PostSessionProcessor, PostSessionResult
+from .review_engine import compare_live_and_final
 from .session import LiveTranscriptionSession, SessionEvent
 from .skill_library import SkillLibrary
 from .topic_profiles import TopicProfileManager
@@ -101,6 +105,12 @@ class TaglishTranscriberApp:
         )
         self.application_audio_enabled_var = tk.BooleanVar(
             value=self.settings.application_audio_enabled
+        )
+        self.conversation_caller_label_var = tk.StringVar(
+            value=self.settings.conversation_caller_label
+        )
+        self.conversation_me_label_var = tk.StringVar(
+            value=self.settings.conversation_me_label
         )
         self.device_var = tk.StringVar(value=self.settings.device_mode)
         self.sensitivity_var = tk.StringVar(value=self.settings.sensitivity_label)
@@ -461,17 +471,40 @@ class TaglishTranscriberApp:
     def _on_audio_input_selected(self, value: str | None = None) -> None:
         selected = value or self.microphone_var.get()
         self.microphone_var.set(selected)
-        self.settings.microphone_label = selected
-        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+        source_mode = self.audio_source_var.get()
+        if source_mode == AUDIO_SOURCE_APPLICATION:
             self.application_audio_var.set(selected)
             self.settings.application_audio_label = selected
             if self.session is not None:
                 self.session.set_application_audio_target(selected)
+        else:
+            self.settings.microphone_label = selected
         self.settings.save()
         if hasattr(self, "_stop_input_test"):
             self._stop_input_test()
         if hasattr(self, "_restart_microphone_monitor_preview"):
             self._restart_microphone_monitor_preview()
+
+    def _on_application_audio_selected(self, value: str | None = None) -> None:
+        selected = value or self.application_audio_var.get()
+        self.application_audio_var.set(selected)
+        self.settings.application_audio_label = selected
+        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+            self.microphone_var.set(selected)
+        if self.session is not None:
+            self.session.set_application_audio_target(selected)
+        self.settings.save()
+        if hasattr(self, "_stop_input_test"):
+            self._stop_input_test()
+
+    def _save_conversation_labels(self, _event=None) -> None:
+        caller = " ".join(self.conversation_caller_label_var.get().strip().split())[:40] or "Caller"
+        me = " ".join(self.conversation_me_label_var.get().strip().split())[:40] or "Me"
+        self.conversation_caller_label_var.set(caller)
+        self.conversation_me_label_var.set(me)
+        self.settings.conversation_caller_label = caller
+        self.settings.conversation_me_label = me
+        self.settings.save()
 
     def _on_application_audio_toggle(self) -> None:
         enabled = bool(self.application_audio_enabled_var.get())
@@ -493,7 +526,37 @@ class TaglishTranscriberApp:
         source_mode = self.audio_source_var.get()
         disabled_labels: list[str] = []
 
-        if source_mode == AUDIO_SOURCE_APPLICATION:
+        if source_mode == AUDIO_SOURCE_CONVERSATION:
+            self.audio_input_label_var.set("My microphone")
+            microphones = [
+                microphone
+                for microphone in list_microphones()
+                if microphone.available
+            ]
+            labels = [microphone.label for microphone in microphones]
+            disabled_labels = []
+            available_labels = list(labels)
+            if not labels:
+                labels = ["No available microphone detected"]
+                disabled_labels = list(labels)
+                available_labels = []
+            selected = self.settings.microphone_label or detect_default_microphone_label()
+            if selected not in available_labels and available_labels:
+                selected = detect_default_microphone_label()
+                if selected not in available_labels:
+                    selected = available_labels[0]
+            if hasattr(self, "application_audio_frame"):
+                self.application_audio_frame.grid()
+            if available_labels:
+                self.activity_var.set(
+                    "Call Mode: choose the caller application and your microphone. "
+                    "The two sources will be transcribed with separate speaker labels."
+                )
+            else:
+                self.activity_var.set(
+                    "Call Mode needs an available microphone in addition to the selected application."
+                )
+        elif source_mode == AUDIO_SOURCE_APPLICATION:
             self.audio_input_label_var.set("Window or application")
             supported, reason = application_audio_support()
             targets = list_running_application_targets() if supported else []
@@ -612,6 +675,8 @@ class TaglishTranscriberApp:
             microphone_monitor_output_label=self.microphone_monitor_output_var.get(),
             application_audio_label=self.application_audio_var.get(),
             application_audio_enabled=self.application_audio_enabled_var.get(),
+            conversation_caller_label=self.conversation_caller_label_var.get(),
+            conversation_me_label=self.conversation_me_label_var.get(),
             device_mode=self.device_var.get(),
             sensitivity_label=self.sensitivity_var.get(),
             include_timestamps=self.timestamps_var.get(),
@@ -1014,18 +1079,23 @@ class TaglishTranscriberApp:
                 system_audio_setup_help(),
             )
             return
-        if self.audio_source_var.get() == AUDIO_SOURCE_APPLICATION:
+        if self.audio_source_var.get() in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}:
             supported, reason = application_audio_support()
             if not supported:
                 messagebox.showwarning("Selected-app audio unavailable", reason)
                 return
-            if "PID " not in self.microphone_var.get():
+            app_label = (
+                self.application_audio_var.get()
+                if self.audio_source_var.get() == AUDIO_SOURCE_CONVERSATION
+                else self.microphone_var.get()
+            )
+            if "PID " not in app_label:
                 messagebox.showwarning(
                     "Choose an application",
                     "Choose the exact running window or application before starting.",
                 )
                 return
-        if self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE:
+        if self.audio_source_var.get() in {AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_CONVERSATION}:
             selected_mics = {
                 item.label: item for item in list_microphones()
             }
@@ -1082,17 +1152,24 @@ class TaglishTranscriberApp:
             skills = SkillLibrary()
             topic_context, topic_terms = self._topic_context_for_session()
             self.active_topic_context = topic_context
-            self.active_topic_terms = list(topic_terms)
+            recognition_terms = [
+                *language_priority_terms(self.settings.language_label),
+                *topic_terms,
+            ]
+            self.active_topic_terms = list(recognition_terms)
             hotwords = vocabulary.hotwords(
                 skills.asr_hotwords(),
-                priority_terms=topic_terms,
+                priority_terms=recognition_terms,
             )
             recording_path = new_recording_path(getattr(self.document, "title", ""))
             session = LiveTranscriptionSession(
                 engine=engine,
                 microphone_index=(
                     parse_microphone_index(self.settings.microphone_label)
-                    if self.settings.audio_source_mode == AUDIO_SOURCE_MICROPHONE
+                    if self.settings.audio_source_mode in {
+                        AUDIO_SOURCE_MICROPHONE,
+                        AUDIO_SOURCE_CONVERSATION,
+                    }
                     else None
                 ),
                 language_code=LANGUAGE_LABEL_TO_CODE[self.settings.language_label],
@@ -1102,6 +1179,7 @@ class TaglishTranscriberApp:
                 hotwords=hotwords,
                 audio_source_mode=self.settings.audio_source_mode,
                 audio_input_label=self.settings.microphone_label,
+                application_audio_label=self.settings.application_audio_label,
                 context_prompt=topic_context,
                 live_noise_reduction=self.settings.live_noise_reduction,
                 application_audio_enabled=self.settings.application_audio_enabled,
@@ -1112,6 +1190,8 @@ class TaglishTranscriberApp:
                 ),
                 smart_vad=self.settings.smart_vad,
                 memory_saver=self.settings.memory_saver,
+                conversation_caller_label=self.settings.conversation_caller_label,
+                conversation_me_label=self.settings.conversation_me_label,
             )
             session.start()
         except (ModelLoadError, RuntimeError, KeyError) as exc:
@@ -1142,7 +1222,13 @@ class TaglishTranscriberApp:
             if self.settings.live_noise_reduction
             else ""
         )
-        if self.settings.audio_source_mode == AUDIO_SOURCE_APPLICATION:
+        if self.settings.audio_source_mode == AUDIO_SOURCE_CONVERSATION:
+            self.activity_var.set(
+                "Call / Conversation Mode is active. The selected application is labelled "
+                f"{self.settings.conversation_caller_label}; your microphone is labelled "
+                f"{self.settings.conversation_me_label}." + noise_note
+            )
+        elif self.settings.audio_source_mode == AUDIO_SOURCE_APPLICATION:
             self.activity_var.set(
                 "Selected-application transcription is active. Only the chosen "
                 "process tree should be captured; other applications are excluded."
@@ -1197,6 +1283,17 @@ class TaglishTranscriberApp:
                 payload.get("audio_input", self.microphone_var.get())
             )
             self.selected_microphone_name = self.selected_audio_input_name
+            source_recordings = payload.get("source_recordings")
+            if isinstance(source_recordings, dict):
+                self.document.source_recordings = {
+                    str(key): Path(value) for key, value in source_recordings.items()
+                }
+            source_offsets = payload.get("source_offsets")
+            if isinstance(source_offsets, dict):
+                self.document.source_offsets = {
+                    str(key): max(0.0, float(value))
+                    for key, value in source_offsets.items()
+                }
             self.status_var.set("Listening")
             return
         if event.kind == "processing":
@@ -1224,6 +1321,22 @@ class TaglishTranscriberApp:
             payload = event.payload or {}
             recording_path = Path(payload["recording_path"])
             self.document.recording_path = recording_path
+            source_recordings = payload.get("source_recordings")
+            if isinstance(source_recordings, dict):
+                self.document.source_recordings = {
+                    str(key): Path(value) for key, value in source_recordings.items()
+                }
+            source_offsets = payload.get("source_offsets")
+            if isinstance(source_offsets, dict):
+                self.document.source_offsets = {
+                    str(key): max(0.0, float(value))
+                    for key, value in source_offsets.items()
+                }
+            speaker_labels = payload.get("speaker_labels")
+            if isinstance(speaker_labels, dict):
+                self.document.speaker_labels = {
+                    str(key): str(value) for key, value in speaker_labels.items()
+                }
             self.session = None
             self._set_controls_for_idle()
             self.status_var.set("WAV ready")
@@ -1296,10 +1409,68 @@ class TaglishTranscriberApp:
                 topic_context=getattr(self, "active_topic_context", None),
                 topic_terms=getattr(self, "active_topic_terms", ()),
             )
-            result = processor.process(
-                recording_path,
-                live_entries=tuple(self.document.live_entries),
-            )
+            if (
+                getattr(self.document, "source_type", "live") == "conversation"
+                and getattr(self.document, "source_recordings", None)
+            ):
+                merged_segments: list[TranscriptSegment] = []
+                merged_comments = []
+                warnings: list[str] = []
+                corrections = []
+                for source_key in ("caller", "me"):
+                    source_path = self.document.source_recordings.get(source_key)
+                    if source_path is None or not Path(source_path).is_file():
+                        continue
+                    source_result = processor.process(
+                        Path(source_path),
+                        live_entries=(),
+                    )
+                    speaker = self.document.speaker_labels.get(
+                        source_key,
+                        "Caller" if source_key == "caller" else "Me",
+                    )
+                    offset = max(0.0, float(self.document.source_offsets.get(source_key, 0.0)))
+                    merged_segments.extend(
+                        replace(
+                            segment,
+                            start=segment.start + offset,
+                            end=segment.end + offset,
+                            speaker=speaker,
+                        )
+                        for segment in source_result.segments
+                    )
+                    merged_comments.extend(
+                        replace(comment, timestamp=comment.timestamp + offset)
+                        for comment in source_result.comments
+                    )
+                    warnings.extend(source_result.warnings)
+                    corrections.extend(source_result.dictionary_corrections)
+
+                merged_segments.sort(key=lambda item: (item.start, item.end))
+                if not merged_segments:
+                    raise RuntimeError(
+                        "The separate Caller and Me recordings could not be transcribed."
+                    )
+                if self.settings.grammar_diction_comments:
+                    merged_comments.extend(
+                        compare_live_and_final(
+                            tuple(self.document.live_entries),
+                            tuple(merged_segments),
+                        )
+                    )
+                result = PostSessionResult(
+                    segments=tuple(merged_segments),
+                    comments=tuple(merged_comments),
+                    recording_path=recording_path,
+                    enhanced_recording_path=None,
+                    warnings=tuple(dict.fromkeys(warnings)),
+                    dictionary_corrections=tuple(corrections),
+                )
+            else:
+                result = processor.process(
+                    recording_path,
+                    live_entries=tuple(self.document.live_entries),
+                )
         except Exception as exc:
             self.root.after(0, self._finalization_failed, str(exc))
             return
@@ -1339,6 +1510,8 @@ class TaglishTranscriberApp:
     def _append_entry(self, widget: tk.Text, entry: TranscriptEntry) -> None:
         if self.timestamps_var.get():
             widget.insert("end", f"[{format_clock(entry.start)}] ", "timestamp")
+        if entry.speaker:
+            widget.insert("end", f"{entry.speaker}: ", "timestamp")
         widget.insert("end", entry.text + "\n", "body")
         widget.see("end")
 

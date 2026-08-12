@@ -25,7 +25,11 @@ class SessionSummary:
     @property
     def display(self) -> str:
         date = self.created_at.replace("T", " ")[:16]
-        source = "File" if self.source_type == "imported" else "Live"
+        source = (
+            "File"
+            if self.source_type == "imported"
+            else ("Call" if self.source_type == "conversation" else "Live")
+        )
         return f"{date}  •  {source}  •  {self.title}"
 
 

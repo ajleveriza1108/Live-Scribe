@@ -294,3 +294,9 @@ releases it after idle or through the Models-page button.
 ## v0.9.1 repository publication safety
 
 Repository preflight rejects runtime hardware reports, first-run markers, session databases, downloaded models, recordings, exports, and inconsistent version metadata. Source CI runs on Windows, Ubuntu, and macOS.
+
+## v0.9.2 Call / Conversation Mode
+
+Windows Call Mode captures a selected application process tree and microphone simultaneously. The two sources have independent bounded queues, segmenters, and WAV sidecars, but one shared WhisperEngine and one conversation transcription worker. TranscriptSegment now carries an optional speaker label. TranscriptDocument persists source recordings, per-source start offsets, and speaker labels.
+
+Conversation verification transcribes Caller and Me source WAVs separately and merges timestamp-adjusted labelled segments. The combined WAV is produced in bounded memory for playback/conventional compatibility. English remains the global region-neutral mode. Optional US, UK, Australian, Canadian, Indian, and Filipino English profiles all reuse the same English Whisper path with light locale prompts/priority terms; no extra ASR model is added.

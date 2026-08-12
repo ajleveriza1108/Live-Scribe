@@ -106,19 +106,26 @@ def model_id_from_display(value: str) -> str:
 AUDIO_SOURCE_MICROPHONE = "Microphone"
 AUDIO_SOURCE_SYSTEM = "Whole computer audio (advanced)"
 AUDIO_SOURCE_APPLICATION = "Computer / livestream — choose application"
+AUDIO_SOURCE_CONVERSATION = "Call / conversation — app + microphone"
 
 # Windows process-loopback can isolate one process tree. Do not offer ordinary
 # whole-system loopback in the normal Windows selector because it captures
 # unrelated applications. macOS/Linux retain their virtual/system audio route
 # until a platform-specific per-app backend is available.
 AUDIO_SOURCE_OPTIONS = (
-    (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_APPLICATION)
+    (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION)
     if sys.platform == "win32"
     else (AUDIO_SOURCE_MICROPHONE, AUDIO_SOURCE_SYSTEM)
 )
 
 LANGUAGE_AUTO = "Auto Detect"
 LANGUAGE_ENGLISH = "English"
+LANGUAGE_AMERICAN_ENGLISH = "English — US"
+LANGUAGE_BRITISH_ENGLISH = "English — UK"
+LANGUAGE_AUSTRALIAN_ENGLISH = "English — Australian"
+LANGUAGE_CANADIAN_ENGLISH = "English — Canadian"
+LANGUAGE_INDIAN_ENGLISH = "English — Indian"
+LANGUAGE_FILIPINO_ENGLISH = "English — Filipino"
 LANGUAGE_FILIPINO = "Filipino / Tagalog"
 LANGUAGE_TAGLISH = "English + Filipino / Taglish"
 LANGUAGE_SPANISH = "Spanish"
@@ -128,9 +135,25 @@ LANGUAGE_ITALIAN = "Italian"
 LANGUAGE_PORTUGUESE = "Portuguese"
 LANGUAGE_DUTCH = "Dutch"
 
+ENGLISH_VARIANT_LABELS = (
+    LANGUAGE_ENGLISH,
+    LANGUAGE_AMERICAN_ENGLISH,
+    LANGUAGE_BRITISH_ENGLISH,
+    LANGUAGE_AUSTRALIAN_ENGLISH,
+    LANGUAGE_CANADIAN_ENGLISH,
+    LANGUAGE_INDIAN_ENGLISH,
+    LANGUAGE_FILIPINO_ENGLISH,
+)
+
 LANGUAGE_LABEL_TO_CODE = {
     LANGUAGE_AUTO: None,
     LANGUAGE_ENGLISH: "en",
+    LANGUAGE_AMERICAN_ENGLISH: "en",
+    LANGUAGE_BRITISH_ENGLISH: "en",
+    LANGUAGE_AUSTRALIAN_ENGLISH: "en",
+    LANGUAGE_CANADIAN_ENGLISH: "en",
+    LANGUAGE_INDIAN_ENGLISH: "en",
+    LANGUAGE_FILIPINO_ENGLISH: "en",
     LANGUAGE_FILIPINO: "tl",
     LANGUAGE_TAGLISH: None,
     LANGUAGE_SPANISH: "es",
@@ -142,6 +165,47 @@ LANGUAGE_LABEL_TO_CODE = {
 }
 
 LANGUAGE_PROMPTS = {
+    LANGUAGE_ENGLISH: (
+        "Faithful verbatim transcript in English. Accept a wide range of English accents "
+        "and preserve the speaker's actual words, names, places, abbreviations, dates, "
+        "phone numbers, and technical terms. Do not force a regional vocabulary, "
+        "translate, or rewrite grammar."
+    ),
+    LANGUAGE_AMERICAN_ENGLISH: (
+        "Faithful verbatim transcript in English. The speaker may use US English. "
+        "Preserve names, places, abbreviations, dates, phone numbers, and natural wording. "
+        "Use US spelling only when the spoken word is otherwise ambiguous. "
+        "Do not invent US-specific terms, translate, or rewrite grammar."
+    ),
+    LANGUAGE_BRITISH_ENGLISH: (
+        "Faithful verbatim transcript in English. The speaker may use UK English. "
+        "Preserve names, places, abbreviations, dates, phone numbers, and natural wording. "
+        "Use UK spelling only when the spoken word is otherwise ambiguous. "
+        "Do not invent UK-specific terms, translate, or rewrite grammar."
+    ),
+    LANGUAGE_AUSTRALIAN_ENGLISH: (
+        "Faithful verbatim transcript in English. The speaker may use Australian English. "
+        "Preserve names, places, abbreviations, dates, phone numbers, and natural wording. "
+        "Use Australian spelling only when the spoken word is otherwise ambiguous. "
+        "Do not invent Australian-specific terms, translate, or rewrite grammar."
+    ),
+    LANGUAGE_CANADIAN_ENGLISH: (
+        "Faithful verbatim transcript in English. The speaker may use Canadian English. "
+        "Preserve names, places, abbreviations, dates, phone numbers, and natural wording. "
+        "Use Canadian spelling only when the spoken word is otherwise ambiguous. "
+        "Do not invent Canada-specific terms, translate, or rewrite grammar."
+    ),
+    LANGUAGE_INDIAN_ENGLISH: (
+        "Faithful verbatim transcript in English. The speaker may use Indian English. "
+        "Preserve names, places, abbreviations, dates, phone numbers, and natural wording. "
+        "Do not invent India-specific terms, translate, or rewrite grammar."
+    ),
+    LANGUAGE_FILIPINO_ENGLISH: (
+        "Faithful verbatim transcript in English. The speaker may use Filipino English. "
+        "Preserve names, places, abbreviations, dates, phone numbers, and natural wording. "
+        "Do not translate Filipino proper names or invent Philippines-specific terms. "
+        "Do not rewrite grammar."
+    ),
     LANGUAGE_AUTO: (
         "Faithful verbatim multilingual transcript. Preserve the language actually spoken. "
         "Keep names, numbers, places, technical terms, and normal punctuation. "
@@ -157,6 +221,12 @@ LANGUAGE_PROMPTS = {
 
 LANGUAGE_DISPLAY_NAMES = {
     LANGUAGE_ENGLISH: "English",
+    LANGUAGE_AMERICAN_ENGLISH: "US English",
+    LANGUAGE_BRITISH_ENGLISH: "UK English",
+    LANGUAGE_AUSTRALIAN_ENGLISH: "Australian English",
+    LANGUAGE_CANADIAN_ENGLISH: "Canadian English",
+    LANGUAGE_INDIAN_ENGLISH: "Indian English",
+    LANGUAGE_FILIPINO_ENGLISH: "Filipino English",
     LANGUAGE_FILIPINO: "Filipino or Tagalog",
     LANGUAGE_SPANISH: "Spanish",
     LANGUAGE_FRENCH: "French",
@@ -167,7 +237,7 @@ LANGUAGE_DISPLAY_NAMES = {
 }
 
 GRAMMAR_REVIEW_LANGUAGE_LABELS = {
-    LANGUAGE_ENGLISH,
+    *ENGLISH_VARIANT_LABELS,
     LANGUAGE_FILIPINO,
     LANGUAGE_TAGLISH,
 }
@@ -183,6 +253,66 @@ def language_prompt(language_label: str | None) -> str:
         "Keep names, numbers, places, technical terms, and normal punctuation. "
         "Do not translate and do not rewrite grammar."
     )
+
+
+ENGLISH_PRIORITY_TERMS = {
+    LANGUAGE_AMERICAN_ENGLISH: (
+        "ZIP code",
+        "cell phone",
+    ),
+    LANGUAGE_BRITISH_ENGLISH: (
+        "postcode",
+        "mobile number",
+        "NHS",
+        "GP",
+        "organisation",
+        "centre",
+    ),
+    LANGUAGE_AUSTRALIAN_ENGLISH: (
+        "postcode",
+        "mobile number",
+        "Medicare",
+        "Centrelink",
+        "NDIS",
+        "bulk billing",
+        "GP",
+        "chemist",
+        "licence",
+        "organisation",
+        "centre",
+        "suburb",
+        "rego",
+        "tradie",
+        "ute",
+        "arvo",
+    ),
+    LANGUAGE_CANADIAN_ENGLISH: (
+        "postal code",
+        "province",
+        "health card",
+        "mobile number",
+        "centre",
+    ),
+    LANGUAGE_INDIAN_ENGLISH: (
+        "PIN code",
+        "mobile number",
+        "Aadhaar",
+        "lakh",
+        "crore",
+    ),
+    LANGUAGE_FILIPINO_ENGLISH: (
+        "barangay",
+        "mobile number",
+        "PhilHealth",
+        "SSS",
+        "GCash",
+        "peso",
+    ),
+}
+
+
+def language_priority_terms(language_label: str | None) -> tuple[str, ...]:
+    return ENGLISH_PRIORITY_TERMS.get(language_label, ())
 
 
 SENSITIVITY_THRESHOLDS = {
@@ -222,6 +352,8 @@ class AppSettings:
     microphone_monitor_output_label: str = ""
     application_audio_label: str = ""
     application_audio_enabled: bool = True
+    conversation_caller_label: str = "Caller"
+    conversation_me_label: str = "Me"
     device_mode: str = "Auto"
     sensitivity_label: str = "Normal"
     include_timestamps: bool = True
@@ -293,6 +425,14 @@ class AppSettings:
             settings.microphone_monitor_output_label = ""
         if not isinstance(settings.application_audio_enabled, bool):
             settings.application_audio_enabled = True
+        if not isinstance(settings.conversation_caller_label, str) or not settings.conversation_caller_label.strip():
+            settings.conversation_caller_label = "Caller"
+        else:
+            settings.conversation_caller_label = " ".join(settings.conversation_caller_label.split())[:40]
+        if not isinstance(settings.conversation_me_label, str) or not settings.conversation_me_label.strip():
+            settings.conversation_me_label = "Me"
+        else:
+            settings.conversation_me_label = " ".join(settings.conversation_me_label.split())[:40]
         if settings.language_label not in LANGUAGE_LABEL_TO_CODE:
             settings.language_label = LANGUAGE_TAGLISH
         if settings.device_mode not in {"Auto", "CPU", "NVIDIA GPU"}:

@@ -1,4 +1,4 @@
-# Live Scribe repository audit — v0.9.1
+# Live Scribe repository audit — v0.9.2
 
 ## Repository state reviewed
 The public `main` branch was reviewed at v0.8.2.
@@ -25,3 +25,7 @@ The public `main` branch was reviewed at v0.8.2.
 
 ## Remaining hardware validation
 Windows process loopback, browser process behavior, USB/Bluetooth monitoring, macOS/Linux routing, long sessions, recovery, and measured RAM use still require physical testing.
+
+## v0.9.2 follow-up
+
+Call / Conversation Mode adds selected-app + microphone dual capture without adding a second Whisper model. Plain English remains region-neutral; optional US, UK, Australian, Canadian, Indian, and Filipino English profiles all reuse the existing English ASR path with light local recognition context.

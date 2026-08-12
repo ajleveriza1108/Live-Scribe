@@ -1,4 +1,4 @@
-LIVE SCRIBE v0.9.1 — BUYER GUIDE
+LIVE SCRIBE v0.9.2 — BUYER GUIDE
 
 WHAT LIVE SCRIBE DOES
 ---------------------
@@ -109,6 +109,23 @@ Smart Silero speech detection and Memory Saver are enabled by default. They
 reduce silence processing, queue memory, duplicate model loading, and idle RAM.
 The Models page includes Release Model from RAM. Downloaded model files remain
 on the portable drive.
+
+
+CALL / CONVERSATION MODE
+------------------------
+On Windows, choose Call / conversation — app + microphone to transcribe both sides of a call. Select the exact calling application for the remote speaker and select your microphone for your own voice. The default labels are Caller and Me and can be renamed before the session.
+
+Live Scribe keeps the two source recordings separate, creates a combined WAV, and keeps one speech-model instance to reduce RAM. Verify Call Sources re-checks the two original source WAV files separately so the speaker labels can be preserved.
+
+For Google Meet or Messenger inside Chrome/Edge, Windows isolates the browser process tree rather than promising one exact tab. Mute unrelated browser tabs during important calls.
+
+AUSTRALIAN ENGLISH
+------------------
+Choose English for a region-neutral transcript across a wide range of English accents. Optional English profiles are also available for US, UK, Australian, Canadian, Indian, and Filipino English. These presets use the same speech model and only add light regional recognition context; they are not separate editions and are not required.
+
+CALL NOTES
+----------
+Summarize & Format creates local call notes with Caller/Contact, Reason for Call, Contact Details, Appointment/Schedule, Action Required, Follow-up, Key Points, and the speaker-labelled transcript. The extractor does not invent missing information.
 
 INPUT AND TRANSCRIPT TOOLS
 --------------------------
