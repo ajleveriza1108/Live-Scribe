@@ -12,8 +12,8 @@ def test_inactive_input_and_output_devices_are_filtered() -> None:
         ROOT / "src" / "taglish_transcriber" / "productivity_features.py"
     ).read_text(encoding="utf-8")
 
-    assert "if microphone.available" in base
-    assert "Inactive or unusable inputs are hidden." in base
+    assert "list_available_microphones()" in base
+    assert "Inactive, disconnected, generic, and duplicate inputs are hidden." in base
     assert "if output.available" in productivity
 
 

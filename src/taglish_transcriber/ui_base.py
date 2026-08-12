@@ -16,6 +16,7 @@ from .audio import (
     detect_default_microphone_label,
     list_audio_outputs,
     detect_default_system_audio_label,
+    list_available_microphones,
     list_microphones,
     list_system_audio_sources,
     parse_microphone_index,
@@ -530,8 +531,7 @@ class TaglishTranscriberApp:
             self.audio_input_label_var.set("My microphone")
             microphones = [
                 microphone
-                for microphone in list_microphones()
-                if microphone.available
+                for microphone in list_available_microphones()
             ]
             labels = [microphone.label for microphone in microphones]
             disabled_labels = []
@@ -548,9 +548,11 @@ class TaglishTranscriberApp:
             if hasattr(self, "application_audio_frame"):
                 self.application_audio_frame.grid()
             if available_labels:
+                count = len(available_labels)
+                noun = "microphone" if count == 1 else "microphones"
                 self.activity_var.set(
-                    "Call Mode: choose the caller application and your microphone. "
-                    "The two sources will be transcribed with separate speaker labels."
+                    f"Call Mode: {count} connected {noun} shown. "
+                    "Inactive, disconnected, and duplicate Windows inputs are hidden."
                 )
             else:
                 self.activity_var.set(
@@ -601,8 +603,7 @@ class TaglishTranscriberApp:
             self.audio_input_label_var.set("Microphone")
             microphones = [
                 microphone
-                for microphone in list_microphones()
-                if microphone.available
+                for microphone in list_available_microphones()
             ]
             labels = [microphone.label for microphone in microphones]
             disabled_labels = []
@@ -617,9 +618,11 @@ class TaglishTranscriberApp:
             if hasattr(self, "application_audio_frame"):
                 self.application_audio_frame.grid_remove()
             if available_labels:
+                count = len(available_labels)
+                noun = "microphone" if count == 1 else "microphones"
                 self.activity_var.set(
-                    f"Detected microphone: {selected}. "
-                    "Inactive or unusable inputs are hidden."
+                    f"{count} connected {noun} available. Selected: {selected}. "
+                    "Inactive, disconnected, generic, and duplicate inputs are hidden."
                 )
             else:
                 self.activity_var.set(

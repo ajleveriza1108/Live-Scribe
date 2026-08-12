@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import queue
+import re
 import os
 import subprocess
 import sys
@@ -40,6 +41,20 @@ VIRTUAL_AUDIO_NAME_HINTS = (
 )
 
 
+WINDOWS_MICROPHONE_ALIAS_HINTS = (
+    "microsoft sound mapper",
+    "primary sound capture driver",
+    "default input",
+)
+
+WINDOWS_HOST_API_PRIORITY = (
+    "windows wasapi",
+    "windows wdm-ks",
+    "windows directsound",
+    "mme",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class MicrophoneInfo:
     index: int
@@ -49,6 +64,7 @@ class MicrophoneInfo:
     is_default: bool = False
     available: bool = True
     unavailable_reason: str = ""
+    host_api_name: str = ""
 
     @property
     def label(self) -> str:
@@ -128,6 +144,182 @@ def _probe_microphone(sd, index: int, sample_rate: float) -> tuple[bool, str]:
         return False, message or "The device cannot currently be opened."
 
 
+def _microphone_name_key(name: str) -> str:
+    """Normalize device names so duplicate host-API entries collapse safely."""
+    normalized = name.casefold()
+    normalized = normalized.replace("(r)", " ")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return " ".join(normalized.split())
+
+
+def _host_api_priority(name: str) -> int:
+    normalized = name.casefold().strip()
+    for index, preferred in enumerate(WINDOWS_HOST_API_PRIORITY):
+        if preferred in normalized:
+            return index
+    return len(WINDOWS_HOST_API_PRIORITY)
+
+
+def _looks_like_windows_microphone_alias(name: str) -> bool:
+    normalized = name.casefold()
+    return any(hint in normalized for hint in WINDOWS_MICROPHONE_ALIAS_HINTS)
+
+
+def _connected_windows_microphone_keys() -> tuple[set[str], str]:
+    """Use native-WASAPI SoundCard discovery as an active/connected allow-list.
+
+    SoundCard is already a Live Scribe dependency for system audio. On Windows
+    it queries native WASAPI endpoints, which avoids many PortAudio aliases and
+    duplicate host-API rows. If native discovery fails, callers fall back to
+    sounddevice probing instead of hiding every microphone.
+    """
+    if sys.platform != "win32":
+        return set(), ""
+
+    try:
+        import soundcard as sc
+    except Exception:
+        return set(), ""
+
+    connected: set[str] = set()
+    default_key = ""
+
+    try:
+        microphones = sc.all_microphones(include_loopback=False)
+    except Exception:
+        microphones = []
+
+    for microphone in microphones:
+        name = str(getattr(microphone, "name", "") or "").strip()
+        key = _microphone_name_key(name)
+        if key:
+            connected.add(key)
+
+    try:
+        default_microphone = sc.default_microphone()
+        default_key = _microphone_name_key(
+            str(getattr(default_microphone, "name", "") or "")
+        )
+    except Exception:
+        default_key = ""
+
+    return connected, default_key
+
+
+def _microphone_matches_connected_key(
+    microphone: MicrophoneInfo,
+    connected_keys: set[str],
+) -> bool:
+    if not connected_keys:
+        return True
+
+    key = _microphone_name_key(microphone.name)
+    if not key:
+        return False
+    if key in connected_keys:
+        return True
+
+    # Backends occasionally decorate the same Windows endpoint name slightly.
+    # Allow containment only for reasonably descriptive names to avoid matching
+    # generic labels such as "Microphone".
+    if len(key) >= 12:
+        for connected in connected_keys:
+            if len(connected) >= 12 and (key in connected or connected in key):
+                return True
+    return False
+
+
+def _deduplicate_microphones(
+    microphones: list[MicrophoneInfo],
+    *,
+    native_default_key: str = "",
+) -> list[MicrophoneInfo]:
+    """Collapse PortAudio duplicates while keeping the best usable backend."""
+    groups: dict[str, list[MicrophoneInfo]] = {}
+    for microphone in microphones:
+        key = _microphone_name_key(microphone.name)
+        if not key:
+            key = f"device-{microphone.index}"
+        groups.setdefault(key, []).append(microphone)
+
+    output: list[MicrophoneInfo] = []
+    for key, group in groups.items():
+        chosen = min(
+            group,
+            key=lambda item: (
+                not item.available,
+                _host_api_priority(item.host_api_name)
+                if sys.platform == "win32"
+                else 0,
+                item.index,
+            ),
+        )
+        default_here = (
+            any(item.is_default for item in group)
+            or bool(native_default_key and key == native_default_key)
+        )
+        if default_here != chosen.is_default:
+            chosen = MicrophoneInfo(
+                index=chosen.index,
+                name=chosen.name,
+                sample_rate=chosen.sample_rate,
+                max_input_channels=chosen.max_input_channels,
+                is_default=default_here,
+                available=chosen.available,
+                unavailable_reason=chosen.unavailable_reason,
+                host_api_name=chosen.host_api_name,
+            )
+        output.append(chosen)
+
+    output.sort(
+        key=lambda item: (
+            not item.is_default,
+            not item.available,
+            item.name.casefold(),
+            item.index,
+        )
+    )
+    return output
+
+
+def list_available_microphones() -> list[MicrophoneInfo]:
+    """Return the short user-facing microphone list.
+
+    Unavailable endpoints, generic Windows aliases, disconnected/ghost devices,
+    and duplicate PortAudio host-API copies are hidden by default.
+    """
+    microphones = [item for item in list_microphones() if item.available]
+    if not microphones:
+        return []
+
+    native_default_key = ""
+    if sys.platform == "win32":
+        connected_keys, native_default_key = _connected_windows_microphone_keys()
+        non_aliases = [
+            item
+            for item in microphones
+            if not _looks_like_windows_microphone_alias(item.name)
+        ]
+        if non_aliases:
+            microphones = non_aliases
+
+        if connected_keys:
+            matched = [
+                item
+                for item in microphones
+                if _microphone_matches_connected_key(item, connected_keys)
+            ]
+            # Never hide every microphone because a backend used slightly
+            # different naming. Fall back to the probed list if matching fails.
+            if matched:
+                microphones = matched
+
+    return _deduplicate_microphones(
+        microphones,
+        native_default_key=native_default_key,
+    )
+
+
 def list_microphones() -> list[MicrophoneInfo]:
     try:
         import sounddevice as sd
@@ -136,6 +328,10 @@ def list_microphones() -> list[MicrophoneInfo]:
 
     default_index = _default_input_index(sd)
     devices = sd.query_devices()
+    try:
+        host_apis = sd.query_hostapis()
+    except Exception:
+        host_apis = ()
     microphones: list[MicrophoneInfo] = []
 
     for index, device in enumerate(devices):
@@ -144,6 +340,13 @@ def list_microphones() -> list[MicrophoneInfo]:
             continue
         sample_rate = float(device.get("default_samplerate", 44_100.0))
         available, reason = _probe_microphone(sd, index, sample_rate)
+        host_api_name = ""
+        try:
+            host_api_index = int(device.get("hostapi", -1))
+            if 0 <= host_api_index < len(host_apis):
+                host_api_name = str(host_apis[host_api_index].get("name", ""))
+        except Exception:
+            host_api_name = ""
         microphones.append(
             MicrophoneInfo(
                 index=index,
@@ -153,6 +356,7 @@ def list_microphones() -> list[MicrophoneInfo]:
                 is_default=index == default_index,
                 available=available,
                 unavailable_reason=reason,
+                host_api_name=host_api_name,
             )
         )
 
@@ -161,7 +365,7 @@ def list_microphones() -> list[MicrophoneInfo]:
 
 
 def detect_default_microphone_label() -> str:
-    microphones = list_microphones()
+    microphones = list_available_microphones()
     for microphone in microphones:
         if microphone.is_default and microphone.available:
             return microphone.label
