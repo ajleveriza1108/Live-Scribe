@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _source(relative: str) -> str:
+    return (ROOT / relative).read_text(encoding="utf-8")
+
+
+def test_live_page_uses_compact_readable_shell() -> None:
+    source = _source("src/taglish_transcriber/ui.py")
+    assert "width=202," in source
+    assert 'font=ctk.CTkFont(family=self.font_family, size=24, weight="bold")' in source
+    assert 'header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 10))' in source
+    assert 'input_card = self._card(page, row=2, column=0, sticky="ew", padx=20, pady=(0, 8))' in source
+    assert 'self.start_button.grid(row=0, column=0, padx=(10, 4), pady=8)' in source
+
+
+def test_live_input_controls_stay_readable_but_compact() -> None:
+    source = _source("src/taglish_transcriber/ui.py")
+    assert 'text="Input"' in source
+    assert 'font=ctk.CTkFont(family=self.font_family, size=13, weight="bold")' in source
+    assert source.count("height=34,") >= 4
+    assert "width=78," in source
+    assert "width=116," in source
+
+
+def test_conversation_panels_do_not_share_the_same_grid_row() -> None:
+    source = _source("src/taglish_transcriber/productivity_features.py")
+    application_anchor = """self.application_audio_frame.grid(
+            row=6,"""
+    microphone_anchor = """self.microphone_monitor_frame.grid(
+            row=7,"""
+    session_anchor = """).grid(row=8, column=0, sticky="w", padx=(14, 8), pady=(0, 8))"""
+    assert application_anchor in source
+    assert microphone_anchor in source
+    assert session_anchor in source
+
+
+def test_compact_layout_preserves_minimum_text_sizes() -> None:
+    ui_source = _source("src/taglish_transcriber/ui.py")
+    productivity_source = _source("src/taglish_transcriber/productivity_features.py")
+    # The compact pass intentionally does not introduce 8px/9px body text.
+    assert "size=8" not in ui_source
+    assert "size=9" not in ui_source
+    assert "size=8" not in productivity_source
+    assert "size=9" not in productivity_source

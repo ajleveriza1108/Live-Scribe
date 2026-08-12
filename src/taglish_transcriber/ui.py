@@ -275,7 +275,7 @@ class _ModernBaseApp(_Controller):
 
         self.sidebar = ctk.CTkFrame(
             self.root,
-            width=218,
+            width=202,
             corner_radius=0,
             fg_color=COLORS["sidebar"],
             border_width=0,
@@ -288,15 +288,15 @@ class _ModernBaseApp(_Controller):
         ctk.CTkLabel(
             self.sidebar,
             text="Live Scribe",
-            font=ctk.CTkFont(family=self.font_family, size=24, weight="bold"),
+            font=ctk.CTkFont(family=self.font_family, size=22, weight="bold"),
             text_color=COLORS["text"],
-        ).grid(row=0, column=0, sticky="w", padx=22, pady=(26, 4))
+        ).grid(row=0, column=0, sticky="w", padx=18, pady=(20, 3))
         ctk.CTkLabel(
             self.sidebar,
             text="Offline AI transcription",
             font=ctk.CTkFont(family=self.font_family, size=12),
             text_color=COLORS["text_secondary"],
-        ).grid(row=1, column=0, sticky="w", padx=22, pady=(0, 24))
+        ).grid(row=1, column=0, sticky="w", padx=18, pady=(0, 16))
 
         nav_items = (
             ("Live Session", "●"),
@@ -312,19 +312,19 @@ class _ModernBaseApp(_Controller):
                 self.sidebar,
                 text=f"{icon}   {name}",
                 command=lambda page=name: self._show_page(page),
-                height=42,
-                corner_radius=9,
+                height=38,
+                corner_radius=8,
                 anchor="w",
                 fg_color="transparent",
                 hover_color=COLORS["surface_raised"],
                 text_color=COLORS["text_secondary"],
-                font=ctk.CTkFont(family=self.font_family, size=14, weight="bold"),
+                font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
             )
-            button.grid(row=index, column=0, sticky="ew", padx=14, pady=3)
+            button.grid(row=index, column=0, sticky="ew", padx=12, pady=2)
             self.nav_buttons[name] = button
 
         theme_holder = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        theme_holder.grid(row=10, column=0, sticky="sew", padx=16, pady=(12, 10))
+        theme_holder.grid(row=10, column=0, sticky="sew", padx=14, pady=(8, 8))
         theme_holder.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             theme_holder,
@@ -337,7 +337,7 @@ class _ModernBaseApp(_Controller):
             variable=self.theme_var,
             values=list(THEME_OPTIONS),
             command=self._change_theme,
-            height=36,
+            height=34,
             corner_radius=8,
             fg_color=COLORS["surface_raised"],
             button_color=COLORS["surface_raised"],
@@ -352,7 +352,7 @@ class _ModernBaseApp(_Controller):
             text="Version 0.9.2",
             text_color=COLORS["muted"],
             font=ctk.CTkFont(family=self.font_family, size=10),
-        ).grid(row=11, column=0, sticky="w", padx=22, pady=(0, 18))
+        ).grid(row=11, column=0, sticky="w", padx=18, pady=(0, 12))
 
         self.main_shell = ctk.CTkFrame(
             self.root,
@@ -381,14 +381,14 @@ class _ModernBaseApp(_Controller):
             parent,
             text=title,
             text_color=COLORS["text"],
-            font=ctk.CTkFont(family=self.font_family, size=26, weight="bold"),
+            font=ctk.CTkFont(family=self.font_family, size=24, weight="bold"),
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(
             parent,
             text=subtitle,
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=12),
-        ).grid(row=1, column=0, sticky="w", pady=(3, 0))
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
 
     def _card(self, parent, **grid_options):
         frame = ctk.CTkFrame(
@@ -407,7 +407,7 @@ class _ModernBaseApp(_Controller):
         page.grid_columnconfigure(0, weight=1)
 
         header = ctk.CTkFrame(page, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=24, pady=(22, 14))
+        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 10))
         header.grid_columnconfigure(0, weight=1)
         self._page_header(
             header,
@@ -419,9 +419,9 @@ class _ModernBaseApp(_Controller):
             textvariable=self.status_var,
             fg_color=COLORS["surface_raised"],
             text_color=COLORS["text_secondary"],
-            corner_radius=16,
-            height=32,
-            padx=14,
+            corner_radius=14,
+            height=28,
+            padx=12,
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
         )
         self.status_chip.grid(row=0, column=1, rowspan=2, sticky="e")
@@ -433,18 +433,18 @@ class _ModernBaseApp(_Controller):
             border_width=1,
             corner_radius=10,
         )
-        self.notice_frame.grid(row=1, column=0, sticky="ew", padx=24, pady=(0, 12))
+        self.notice_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 8))
         self.notice_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(
             self.notice_frame,
             text="i",
-            width=28,
-            height=28,
-            corner_radius=14,
+            width=24,
+            height=24,
+            corner_radius=12,
             fg_color=COLORS["accent"],
             text_color=("#FFFFFF", "#001219"),
-            font=ctk.CTkFont(family=self.font_family, size=14, weight="bold"),
-        ).grid(row=0, column=0, padx=(12, 10), pady=10)
+            font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
+        ).grid(row=0, column=0, padx=(10, 8), pady=7)
         self.notice_message_label = ctk.CTkLabel(
             self.notice_frame,
             text=(
@@ -454,20 +454,20 @@ class _ModernBaseApp(_Controller):
             justify="left",
             anchor="w",
             text_color=COLORS["text_secondary"],
-            font=ctk.CTkFont(family=self.font_family, size=12),
+            font=ctk.CTkFont(family=self.font_family, size=11),
         )
-        self.notice_message_label.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=10)
+        self.notice_message_label.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=7)
         self.notice_frame.bind("<Configure>", self._update_notice_wraplength)
 
-        input_card = self._card(page, row=2, column=0, sticky="ew", padx=24, pady=(0, 12))
+        input_card = self._card(page, row=2, column=0, sticky="ew", padx=20, pady=(0, 8))
         self.input_card = input_card
         input_card.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(
             input_card,
             text="Input",
             text_color=COLORS["text"],
-            font=ctk.CTkFont(family=self.font_family, size=14, weight="bold"),
-        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=16, pady=(14, 10))
+            font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
+        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=14, pady=(10, 7))
         app_audio_ready, _app_audio_reason = application_audio_support()
         source_disabled = (
             []
@@ -481,7 +481,7 @@ class _ModernBaseApp(_Controller):
             disabled_values=source_disabled,
             command=self._on_audio_source_selected,
             state="readonly",
-            height=38,
+            height=34,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
             hover_color=COLORS["surface_raised"],
@@ -493,8 +493,8 @@ class _ModernBaseApp(_Controller):
             row=1,
             column=0,
             sticky="ew",
-            padx=(16, 8),
-            pady=(0, 16),
+            padx=(14, 6),
+            pady=(0, 10),
         )
         self.microphone_combo = WholeClickableDropdown(
             input_card,
@@ -502,7 +502,7 @@ class _ModernBaseApp(_Controller):
             values=["Default input"],
             command=self._on_audio_input_selected,
             state="readonly",
-            height=38,
+            height=34,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
             hover_color=COLORS["surface_raised"],
@@ -514,15 +514,15 @@ class _ModernBaseApp(_Controller):
             row=1,
             column=1,
             sticky="ew",
-            padx=8,
-            pady=(0, 16),
+            padx=6,
+            pady=(0, 10),
         )
         self.detect_button = ctk.CTkButton(
             input_card,
             text="Detect",
             command=lambda: self._refresh_audio_inputs(auto_select=True),
-            width=88,
-            height=38,
+            width=78,
+            height=34,
             corner_radius=8,
             fg_color=COLORS["surface_raised"],
             hover_color=COLORS["border"],
@@ -530,21 +530,21 @@ class _ModernBaseApp(_Controller):
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.detect_button.grid(row=1, column=2, padx=(8, 16), pady=(0, 10))
+        self.detect_button.grid(row=1, column=2, padx=(6, 14), pady=(0, 10))
 
         ctk.CTkLabel(
             input_card,
             text="Topic profile",
             text_color=COLORS["text_secondary"],
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
-        ).grid(row=2, column=0, sticky="w", padx=16, pady=(0, 6))
+        ).grid(row=2, column=0, sticky="w", padx=14, pady=(0, 4))
         self.topic_combo = WholeClickableDropdown(
             input_card,
             variable=self.topic_var,
             values=list(self.topic_manager.names),
             command=self._on_topic_selected,
             state="readonly",
-            height=38,
+            height=34,
             corner_radius=8,
             fg_color=COLORS["surface_alt"],
             hover_color=COLORS["border"],
@@ -552,13 +552,13 @@ class _ModernBaseApp(_Controller):
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.topic_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=(16, 8), pady=(0, 6))
+        self.topic_combo.grid(row=3, column=0, columnspan=2, sticky="ew", padx=(14, 6), pady=(0, 4))
         self.manage_topics_button = ctk.CTkButton(
             input_card,
             text="Manage Topics",
             command=lambda: self._show_page("Topics"),
-            width=126,
-            height=38,
+            width=116,
+            height=34,
             corner_radius=8,
             fg_color=COLORS["surface_raised"],
             hover_color=COLORS["border"],
@@ -566,7 +566,7 @@ class _ModernBaseApp(_Controller):
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.manage_topics_button.grid(row=3, column=2, padx=(8, 16), pady=(0, 6))
+        self.manage_topics_button.grid(row=3, column=2, padx=(6, 14), pady=(0, 4))
         ctk.CTkLabel(
             input_card,
             textvariable=self.topic_summary_var,
@@ -574,15 +574,15 @@ class _ModernBaseApp(_Controller):
             anchor="w",
             justify="left",
             wraplength=900,
-            font=ctk.CTkFont(family=self.font_family, size=11),
-        ).grid(row=4, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 14))
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).grid(row=4, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 8))
 
-        transcript_card = self._card(page, row=3, column=0, sticky="nsew", padx=24, pady=(0, 12))
+        transcript_card = self._card(page, row=3, column=0, sticky="nsew", padx=20, pady=(0, 8))
         transcript_card.grid_rowconfigure(1, weight=1)
         transcript_card.grid_columnconfigure(0, weight=1)
         status_row = ctk.CTkFrame(transcript_card, fg_color="transparent")
         self.status_row = status_row
-        status_row.grid(row=0, column=0, sticky="ew", padx=16, pady=(12, 4))
+        status_row.grid(row=0, column=0, sticky="ew", padx=14, pady=(8, 3))
         status_row.grid_columnconfigure(1, weight=1)
         self.recording_dot = ctk.CTkLabel(
             status_row,
@@ -609,92 +609,92 @@ class _ModernBaseApp(_Controller):
             text_color=COLORS["text"],
             corner_radius=8,
         )
-        self.notebook.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        self.notebook.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
         self.live_text = self._create_text_tab("Live transcript")
         self.final_text = self._create_text_tab("Final transcript")
         self.review_text = self._create_text_tab("Review comments")
 
-        action_bar = self._card(page, row=4, column=0, sticky="ew", padx=24, pady=(0, 12))
+        action_bar = self._card(page, row=4, column=0, sticky="ew", padx=20, pady=(0, 8))
         self.action_bar = action_bar
         action_bar.grid_columnconfigure(7, weight=1)
         self.start_button = ctk.CTkButton(
             action_bar,
             text="Start Listening",
             command=self._start_requested,
-            height=42,
-            corner_radius=9,
+            height=36,
+            corner_radius=8,
             fg_color=COLORS["accent"],
             hover_color=COLORS["accent_hover"],
             text_color=("#FFFFFF", "#001219"),
             font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
         )
-        self.start_button.grid(row=0, column=0, padx=(12, 6), pady=12)
+        self.start_button.grid(row=0, column=0, padx=(10, 4), pady=8)
         self.stop_button = ctk.CTkButton(
             action_bar,
             text="Stop & Save WAV",
             command=self._stop_requested,
             state="disabled",
-            height=42,
-            corner_radius=9,
+            height=36,
+            corner_radius=8,
             fg_color=COLORS["danger"],
             hover_color=COLORS["danger"],
             text_color="#FFFFFF",
         )
-        self.stop_button.grid(row=0, column=1, padx=6, pady=12)
+        self.stop_button.grid(row=0, column=1, padx=4, pady=8)
         self.verify_wav_button = ctk.CTkButton(
             action_bar,
             text="Verify from WAV",
             command=self._verify_wav_requested,
             state="disabled",
-            height=42,
-            corner_radius=9,
+            height=36,
+            corner_radius=8,
             fg_color=COLORS["success"],
             hover_color=COLORS["success"],
             text_color="#FFFFFF",
         )
-        self.verify_wav_button.grid(row=0, column=2, padx=6, pady=12)
+        self.verify_wav_button.grid(row=0, column=2, padx=4, pady=8)
         self.clear_button = ctk.CTkButton(
             action_bar,
             text="New Session",
             command=self._clear_transcript,
-            height=42,
-            corner_radius=9,
+            height=36,
+            corner_radius=8,
             fg_color="transparent",
             hover_color=COLORS["surface_raised"],
             border_color=COLORS["border"],
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.clear_button.grid(row=0, column=3, padx=6, pady=12)
+        self.clear_button.grid(row=0, column=3, padx=4, pady=8)
         self.export_button = ctk.CTkButton(
             action_bar,
             text="Export ▾",
             command=self._show_export_menu,
-            height=42,
-            corner_radius=9,
+            height=36,
+            corner_radius=8,
             fg_color="transparent",
             hover_color=COLORS["surface_raised"],
             border_color=COLORS["border"],
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.export_button.grid(row=0, column=4, padx=6, pady=12)
+        self.export_button.grid(row=0, column=4, padx=4, pady=8)
         self.recording_folder_button = ctk.CTkButton(
             action_bar,
             text="Recordings",
             command=self._open_recording_folder,
-            height=42,
-            corner_radius=9,
+            height=36,
+            corner_radius=8,
             fg_color="transparent",
             hover_color=COLORS["surface_raised"],
             border_color=COLORS["border"],
             border_width=1,
             text_color=COLORS["text"],
         )
-        self.recording_folder_button.grid(row=0, column=5, padx=6, pady=12)
+        self.recording_folder_button.grid(row=0, column=5, padx=4, pady=8)
 
         footer = ctk.CTkFrame(page, fg_color="transparent")
-        footer.grid(row=5, column=0, sticky="ew", padx=28, pady=(0, 14))
+        footer.grid(row=5, column=0, sticky="ew", padx=20, pady=(0, 8))
         footer.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             footer,
