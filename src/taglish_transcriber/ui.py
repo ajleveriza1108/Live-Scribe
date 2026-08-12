@@ -1035,9 +1035,20 @@ class _ModernBaseApp(_Controller):
     def _build_models_page(self) -> None:
         page = self._page_frame("Models")
         page.grid_columnconfigure(0, weight=1)
-        page.grid_rowconfigure(4, weight=1)
+        page.grid_rowconfigure(0, weight=1)
 
-        header = ctk.CTkFrame(page, fg_color="transparent")
+        models_scroll = ctk.CTkScrollableFrame(
+            page,
+            fg_color=COLORS["window"],
+            corner_radius=0,
+            scrollbar_button_color=COLORS["surface_raised"],
+            scrollbar_button_hover_color=COLORS["border"],
+        )
+        models_scroll.grid(row=0, column=0, sticky="nsew")
+        models_scroll.grid_columnconfigure(0, weight=1)
+        self.models_scroll_frame = models_scroll
+
+        header = ctk.CTkFrame(models_scroll, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=28, pady=(28, 18))
         self._page_header(
             header,
@@ -1045,7 +1056,7 @@ class _ModernBaseApp(_Controller):
             "Live Scribe checks this computer and its portable storage before offering model downloads.",
         )
 
-        hardware_card = self._card(page, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
+        hardware_card = self._card(models_scroll, row=1, column=0, sticky="ew", padx=28, pady=(0, 14))
         self.hardware_card = hardware_card
         hardware_card.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
@@ -1087,7 +1098,7 @@ class _ModernBaseApp(_Controller):
         )
         self.recheck_pc_button.grid(row=0, column=1, rowspan=3, sticky="e", padx=20, pady=18)
 
-        choose_card = self._card(page, row=2, column=0, sticky="ew", padx=28, pady=(0, 14))
+        choose_card = self._card(models_scroll, row=2, column=0, sticky="ew", padx=28, pady=(0, 14))
         choose_card.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             choose_card,
@@ -1138,8 +1149,10 @@ class _ModernBaseApp(_Controller):
             wraplength=880,
             font=ctk.CTkFont(family=self.font_family, size=11),
         ).grid(row=4, column=0, sticky="ew", padx=20, pady=(0, 10))
+        model_buttons = ctk.CTkFrame(choose_card, fg_color="transparent")
+        model_buttons.grid(row=5, column=0, sticky="w", padx=20, pady=(0, 18))
         self.download_model_button = ctk.CTkButton(
-            choose_card,
+            model_buttons,
             text="Download Selected Quality",
             command=self._download_model_requested,
             height=42,
@@ -1149,10 +1162,7 @@ class _ModernBaseApp(_Controller):
             text_color=("#FFFFFF", "#001219"),
             font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
         )
-        model_buttons = ctk.CTkFrame(choose_card, fg_color="transparent")
-        model_buttons.grid(row=5, column=0, sticky="w", padx=20, pady=(0, 18))
         self.download_model_button.grid(
-            in_=model_buttons,
             row=0,
             column=0,
             sticky="w",
@@ -1175,7 +1185,7 @@ class _ModernBaseApp(_Controller):
         self.release_model_button.grid(row=0, column=1, sticky="w")
 
         self.download_progress_frame = self._card(
-            page, row=3, column=0, sticky="ew", padx=28, pady=(0, 14)
+            models_scroll, row=3, column=0, sticky="ew", padx=28, pady=(0, 14)
         )
         self.download_progress_frame.grid_columnconfigure(0, weight=1)
         self.download_progress_title = ctk.CTkLabel(
@@ -1225,7 +1235,7 @@ class _ModernBaseApp(_Controller):
         self.download_progress_frame.grid_remove()
 
         compatibility = self._card(
-            page, row=4, column=0, sticky="nsew", padx=28, pady=(0, 24)
+            models_scroll, row=4, column=0, sticky="ew", padx=28, pady=(0, 28)
         )
         compatibility.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
