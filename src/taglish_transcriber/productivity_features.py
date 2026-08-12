@@ -2068,12 +2068,18 @@ class ProductivityFeaturesMixin:
     # Storage manager
     # ------------------------------------------------------------------
     def _open_storage_manager(self) -> None:
-        if self.session is not None or self.model_loading or self.model_downloading or self.finalizing:
+        if (
+            self.session is not None
+            or self.model_loading
+            or self.model_downloading
+            or self.finalizing
+        ):
             messagebox.showinfo(
                 "Finish the current operation",
                 "Storage cleanup is available when Live Scribe is idle.",
             )
             return
+
         if self.storage_window is not None:
             try:
                 if self.storage_window.winfo_exists():
@@ -2084,26 +2090,50 @@ class ProductivityFeaturesMixin:
 
         window = ctk.CTkToplevel(self.root)
         self.storage_window = window
-        window.title("Live Scribe Storage Manager")
-        window.geometry("760x520")
-        window.minsize(650, 430)
+        window.title("Live Scribe Storage & Memory Manager")
+        window.geometry("900x500")
+        window.minsize(760, 440)
         window.transient(self.root)
         window.grab_set()
+        window.protocol("WM_DELETE_WINDOW", self._close_storage_manager)
 
         ctk.CTkLabel(
             window,
-            text="Portable Storage Manager",
-            font=ctk.CTkFont(family=self.font_family, size=22, weight="bold"),
-        ).pack(anchor="w", padx=20, pady=(20, 4))
+            text="Storage & Memory Manager",
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=20,
+                weight="bold",
+            ),
+        ).pack(anchor="w", padx=16, pady=(14, 2))
+
         ctk.CTkLabel(
             window,
             text=(
-                "Remove unused speech models or clean stopped downloads and temporary files. "
-                "Live recording parts are kept in Recordings/In Progress, while the merged WAV is saved in Recordings/Final Output. Keeping both copies uses additional space."
+                "Disk storage = downloaded model files and recordings. "
+                "RAM = temporary working memory used only while a speech model is loaded.\n"
+                "A model showing 0 B + Not downloaded has no model files to delete."
             ),
             justify="left",
-            wraplength=700,
-        ).pack(anchor="w", padx=20, pady=(0, 12))
+            anchor="w",
+            wraplength=850,
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).pack(anchor="w", fill="x", padx=16, pady=(0, 8))
+
+        self.storage_ram_status_var = tk.StringVar(value="")
+        ctk.CTkLabel(
+            window,
+            textvariable=self.storage_ram_status_var,
+            justify="left",
+            anchor="w",
+            text_color=self._color("text"),
+            font=ctk.CTkFont(
+                family=self.font_family,
+                size=11,
+                weight="bold",
+            ),
+        ).pack(anchor="w", fill="x", padx=16, pady=(0, 6))
 
         tree = ttk.Treeview(
             window,
@@ -2111,103 +2141,399 @@ class ProductivityFeaturesMixin:
             show="headings",
             style="LiveScribe.Treeview",
             selectmode="browse",
+            height=10,
         )
         tree.heading("item", text="Item")
-        tree.heading("size", text="Used space")
-        tree.heading("status", text="Status")
+        tree.heading("size", text="Disk used")
+        tree.heading("status", text="Disk / RAM status")
         tree.column("item", width=390, stretch=True)
         tree.column("size", width=120, anchor="e")
-        tree.column("status", width=160)
-        tree.pack(fill="both", expand=True, padx=20, pady=8)
+        tree.column("status", width=220)
+        tree.pack(fill="both", expand=True, padx=16, pady=(2, 6))
+        tree.bind("<<TreeviewSelect>>", self._storage_selection_changed)
         self.storage_tree = tree
 
+        self.storage_hint_var = tk.StringVar(
+            value="Select a row to see which cleanup action is available."
+        )
+        ctk.CTkLabel(
+            window,
+            textvariable=self.storage_hint_var,
+            justify="left",
+            anchor="w",
+            wraplength=850,
+            text_color=self._color("text_secondary"),
+            font=ctk.CTkFont(family=self.font_family, size=10),
+        ).pack(anchor="w", fill="x", padx=16, pady=(0, 6))
+
         buttons = ctk.CTkFrame(window, fg_color="transparent")
-        buttons.pack(fill="x", padx=20, pady=(4, 20))
-        ctk.CTkButton(
+        buttons.pack(fill="x", padx=16, pady=(0, 14))
+        buttons.grid_columnconfigure((0, 1, 2), weight=1)
+
+        self.storage_remove_model_button = ctk.CTkButton(
             buttons,
-            text="Remove Selected Model",
+            text="Remove Model Files",
             command=self._remove_selected_model_storage,
-        ).pack(side="left", padx=(0, 6))
-        ctk.CTkButton(
+            height=32,
+            state="disabled",
+        )
+        self.storage_remove_model_button.grid(
+            row=0, column=0, sticky="ew", padx=(0, 4), pady=(0, 4)
+        )
+
+        self.storage_clean_partial_button = ctk.CTkButton(
             buttons,
-            text="Clean Partial Downloads",
+            text="Clear Partial Downloads",
             command=self._clean_partial_storage,
-        ).pack(side="left", padx=6)
-        ctk.CTkButton(buttons, text="Clean Temporary Files", command=self._clean_temp_storage).pack(side="left", padx=6)
-        ctk.CTkButton(buttons, text="Delete Completed Parts", command=self._clean_completed_recording_parts).pack(side="left", padx=6)
-        ctk.CTkButton(buttons, text="Delete All In-Progress", command=self._clean_all_recording_parts, fg_color=self._color("danger"), hover_color=self._color("danger"), text_color="#FFFFFF").pack(side="left", padx=6)
-        ctk.CTkButton(
+            height=32,
+            state="disabled",
+        )
+        self.storage_clean_partial_button.grid(
+            row=0, column=1, sticky="ew", padx=4, pady=(0, 4)
+        )
+
+        self.storage_clean_temp_button = ctk.CTkButton(
+            buttons,
+            text="Clear Temporary Files",
+            command=self._clean_temp_storage,
+            height=32,
+            state="disabled",
+        )
+        self.storage_clean_temp_button.grid(
+            row=0, column=2, sticky="ew", padx=(4, 0), pady=(0, 4)
+        )
+
+        self.storage_delete_completed_button = ctk.CTkButton(
+            buttons,
+            text="Delete Completed Parts",
+            command=self._clean_completed_recording_parts,
+            height=32,
+            state="disabled",
+        )
+        self.storage_delete_completed_button.grid(
+            row=1, column=0, sticky="ew", padx=(0, 4), pady=(4, 0)
+        )
+
+        self.storage_delete_all_button = ctk.CTkButton(
+            buttons,
+            text="Delete All In-Progress",
+            command=self._clean_all_recording_parts,
+            height=32,
+            state="disabled",
+            fg_color=self._color("danger"),
+            hover_color=self._color("danger"),
+            text_color="#FFFFFF",
+        )
+        self.storage_delete_all_button.grid(
+            row=1, column=1, sticky="ew", padx=4, pady=(4, 0)
+        )
+
+        self.storage_close_button = ctk.CTkButton(
             buttons,
             text="Close",
-            command=window.destroy,
+            command=self._close_storage_manager,
+            height=32,
             fg_color="transparent",
             border_width=1,
-        ).pack(side="right")
+            border_color=self._color("border"),
+            text_color=self._color("text"),
+        )
+        self.storage_close_button.grid(
+            row=1, column=2, sticky="ew", padx=(4, 0), pady=(4, 0)
+        )
 
         self._refresh_storage_tree()
+
+    def _close_storage_manager(self) -> None:
+        window = self.storage_window
+        self.storage_window = None
+        if window is None:
+            return
+        try:
+            if window.winfo_exists():
+                window.grab_release()
+                window.destroy()
+        except tk.TclError:
+            pass
+
+    def _loaded_model_name(self) -> str:
+        engine = self.engine
+        if engine is None or not engine.is_loaded:
+            return ""
+        return engine.model_name
 
     def _refresh_storage_tree(self) -> None:
         if not hasattr(self, "storage_tree"):
             return
+
+        items = storage_items()
+        self._storage_items = {item.key: item for item in items}
+        loaded_model = self._loaded_model_name()
+
         self.storage_tree.delete(*self.storage_tree.get_children())
-        for item in storage_items():
+        for item in items:
+            status = item.status
+            if item.key == f"model:{loaded_model}":
+                status = f"{status} • Loaded in RAM"
             self.storage_tree.insert(
                 "",
                 "end",
                 iid=item.key,
-                values=(item.label, format_size(item.size_bytes), item.status),
+                values=(
+                    item.label,
+                    format_size(item.size_bytes),
+                    status,
+                ),
             )
+
+        if hasattr(self, "storage_ram_status_var"):
+            if loaded_model:
+                self.storage_ram_status_var.set(
+                    f"RAM now: {model_friendly_name(loaded_model)} is loaded. "
+                    "Release it to free RAM; removing model files is a separate disk action."
+                )
+            else:
+                self.storage_ram_status_var.set(
+                    "RAM now: No speech model is loaded. "
+                    "Selecting a speech quality alone does not use model RAM."
+                )
+
+        self._update_storage_action_states()
+
+    def _storage_selection_changed(self, _event=None) -> None:
+        self._update_storage_action_states()
+
+    def _update_storage_action_states(self) -> None:
+        if not hasattr(self, "storage_tree"):
+            return
+
+        items = getattr(self, "_storage_items", {})
+        partial = items.get("partial")
+        temp = items.get("temp")
+        in_progress = items.get("recordings-in-progress")
+
+        self.storage_clean_partial_button.configure(
+            state=(
+                "normal"
+                if partial is not None and partial.size_bytes > 0
+                else "disabled"
+            )
+        )
+        self.storage_clean_temp_button.configure(
+            state=(
+                "normal"
+                if temp is not None and temp.size_bytes > 0
+                else "disabled"
+            )
+        )
+        in_progress_size = in_progress.size_bytes if in_progress is not None else 0
+        self.storage_delete_completed_button.configure(
+            state="normal" if in_progress_size > 0 else "disabled"
+        )
+        self.storage_delete_all_button.configure(
+            state="normal" if in_progress_size > 0 else "disabled"
+        )
+
+        selection = self.storage_tree.selection()
+        selected_key = selection[0] if selection else ""
+        selected_item = items.get(selected_key)
+        removable_model = bool(
+            selected_item is not None
+            and selected_key.startswith("model:")
+            and selected_item.size_bytes > 0
+        )
+        self.storage_remove_model_button.configure(
+            state="normal" if removable_model else "disabled"
+        )
+
+        if selected_item is None:
+            self.storage_hint_var.set(
+                "Select a row to see which cleanup action is available."
+            )
+            return
+
+        if selected_key.startswith("model:"):
+            model_name = selected_key.split(":", 1)[1]
+            if selected_item.size_bytes <= 0:
+                self.storage_hint_var.set(
+                    f"{model_friendly_name(model_name)} is not downloaded. "
+                    "There are no model files to remove."
+                )
+            elif self._loaded_model_name() == model_name:
+                self.storage_hint_var.set(
+                    f"{model_friendly_name(model_name)} uses "
+                    f"{format_size(selected_item.size_bytes)} on disk and is also "
+                    "loaded in RAM. Removing it will first release the RAM copy."
+                )
+            else:
+                self.storage_hint_var.set(
+                    f"{model_friendly_name(model_name)} uses "
+                    f"{format_size(selected_item.size_bytes)} on disk. "
+                    "Remove Model Files deletes only this downloaded model copy."
+                )
+            return
+
+        hints = {
+            "partial": (
+                "Stopped or incomplete model-download data. "
+                "Clear it only if you do not plan to resume those downloads."
+            ),
+            "temp": (
+                "Temporary working files. These are safe to clear while Live Scribe is idle."
+            ),
+            "cache": (
+                "Portable runtime support cache. This is separate from downloaded speech models "
+                "and is intentionally kept by the Storage Manager."
+            ),
+            "recordings-in-progress": (
+                "Safety WAV parts used for recovery. Delete completed parts only after a merged "
+                "Final Output WAV exists."
+            ),
+            "recordings-final": (
+                "Final merged WAV recordings. Storage Manager does not delete final recordings."
+            ),
+        }
+        self.storage_hint_var.set(hints.get(selected_key, selected_item.status))
 
     def _remove_selected_model_storage(self) -> None:
         selection = self.storage_tree.selection()
         if not selection or not selection[0].startswith("model:"):
-            messagebox.showinfo("Choose a model", "Select a speech model row first.")
+            messagebox.showinfo(
+                "Choose a downloaded model",
+                "Select a speech-model row that actually uses disk space.",
+                parent=self.storage_window,
+            )
             return
+
         model_name = selection[0].split(":", 1)[1]
         if model_name not in MODEL_OPTIONS:
             return
+
+        item = getattr(self, "_storage_items", {}).get(selection[0])
+        if item is None or item.size_bytes <= 0:
+            messagebox.showinfo(
+                "Nothing to remove",
+                f"{model_friendly_name(model_name)} is not downloaded. "
+                "It uses 0 B of model storage.",
+                parent=self.storage_window,
+            )
+            self._refresh_storage_tree()
+            return
+
+        loaded_here = self._loaded_model_name() == model_name
+        if loaded_here:
+            prompt = (
+                f"{model_friendly_name(model_name)} is currently loaded in RAM and "
+                f"uses {format_size(item.size_bytes)} on disk.\n\n"
+                "Release it from RAM and remove its downloaded model files?\n\n"
+                "The speech-quality choice will stay selected so it can be downloaded again later."
+            )
+        else:
+            prompt = (
+                f"Remove {model_friendly_name(model_name)} model files from this portable copy?\n\n"
+                f"Disk space to remove: {format_size(item.size_bytes)}\n\n"
+                "The speech-quality choice will stay selected so it can be downloaded again later."
+            )
+
         if not messagebox.askyesno(
-            "Remove speech model",
-            f"Remove {model_friendly_name(model_name)} from this portable copy?\n\n"
-            "It can be downloaded again later.",
+            "Remove downloaded model files",
+            prompt,
+            parent=self.storage_window,
         ):
             return
-        removed = remove_model(model_name)
-        if self._selected_model_name() == model_name:
+
+        if loaded_here and self.engine is not None:
+            self._cancel_engine_release()
+            self.engine.unload()
             self.engine = None
-            self.settings.model_name = ""
-            self.model_var.set(MODEL_PLACEHOLDER)
-            self.settings.save()
+            if hasattr(self, "_update_model_memory_ui"):
+                self._update_model_memory_ui()
+
+        try:
+            removed = remove_model(model_name)
+        except OSError as exc:
+            messagebox.showerror(
+                "Model files could not be removed",
+                "Windows could not remove the downloaded model files.\n\n"
+                f"Details: {str(exc).strip() or 'file-system error'}",
+                parent=self.storage_window,
+            )
+            self._refresh_storage_tree()
+            return
+
+        # Keep the user's selected speech quality. Deleting model files should
+        # change it back to "not downloaded", not silently clear the selection.
         self._refresh_storage_tree()
         self._update_model_status()
         self._set_controls_for_idle()
-        self.activity_var.set(f"Removed {format_size(removed)} of model data.")
+        self.activity_var.set(
+            f"Removed {format_size(removed)} of {model_friendly_name(model_name)} "
+            "model files. The quality remains selected and can be downloaded again."
+        )
 
     def _clean_partial_storage(self) -> None:
         removed = clean_partial_downloads()
         self._refresh_storage_tree()
-        self.activity_var.set(
-            f"Cleaned {format_size(removed)} of stopped model downloads. Recovery recording parts were preserved."
-        )
+        if removed <= 0:
+            self.activity_var.set("No stopped or partial model downloads were found.")
+        else:
+            self.activity_var.set(
+                f"Cleared {format_size(removed)} of stopped model-download data. "
+                "Recovery recording parts were preserved."
+            )
 
     def _clean_temp_storage(self) -> None:
         removed = clean_temporary_files()
         self._refresh_storage_tree()
-        self.activity_var.set(f"Cleaned {format_size(removed)} of temporary files.")
+        if removed <= 0:
+            self.activity_var.set("No temporary files were using disk space.")
+        else:
+            self.activity_var.set(
+                f"Cleared {format_size(removed)} of temporary files."
+            )
 
     def _clean_completed_recording_parts(self) -> None:
-        if not messagebox.askyesno("Delete completed recording parts", "Delete unmerged safety parts only when a matching merged WAV already exists in Recordings/Final Output?\n\nThis frees storage without deleting the final WAV.", parent=self.storage_window):
+        if not messagebox.askyesno(
+            "Delete completed recording parts",
+            "Delete in-progress safety parts only when a matching merged WAV already "
+            "exists in Recordings/Final Output?\n\n"
+            "This frees storage without deleting the final WAV.",
+            parent=self.storage_window,
+        ):
             return
+
         removed = clean_completed_recording_parts()
         self._refresh_storage_tree()
-        self.activity_var.set(f"Deleted {format_size(removed)} of completed in-progress audio parts.")
+        self.activity_var.set(
+            (
+                f"Deleted {format_size(removed)} of completed in-progress audio parts."
+                if removed > 0
+                else "No completed in-progress audio parts were available to delete."
+            )
+        )
 
     def _clean_all_recording_parts(self) -> None:
-        if not messagebox.askyesno("Delete all in-progress audio", "This permanently deletes every unmerged WAV part in Recordings/In Progress.\n\nUnfinished sessions that do not yet have a merged final WAV may no longer be recoverable. Final Output WAV files are not deleted.\n\nContinue?", parent=self.storage_window):
+        items = getattr(self, "_storage_items", {})
+        in_progress = items.get("recordings-in-progress")
+        if in_progress is None or in_progress.size_bytes <= 0:
+            self.activity_var.set("There are no in-progress recording parts to delete.")
+            self._refresh_storage_tree()
             return
+
+        if not messagebox.askyesno(
+            "Delete all in-progress audio",
+            "This permanently deletes every unmerged WAV part in Recordings/In Progress.\n\n"
+            "Unfinished sessions that do not yet have a merged final WAV may no longer "
+            "be recoverable. Final Output WAV files are not deleted.\n\nContinue?",
+            parent=self.storage_window,
+        ):
+            return
+
         removed = clean_all_recording_parts()
         self._refresh_storage_tree()
-        self.activity_var.set(f"Deleted {format_size(removed)} of in-progress recording parts.")
+        self.activity_var.set(
+            f"Deleted {format_size(removed)} of in-progress recording parts."
+        )
 
     # ------------------------------------------------------------------
     # Safe close

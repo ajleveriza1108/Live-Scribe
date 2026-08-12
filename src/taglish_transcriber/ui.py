@@ -220,6 +220,12 @@ class _ModernBaseApp(_Controller):
             value="Choose and download one speech quality option before the first session."
         )
         self.model_status_var = tk.StringVar(value=model_status(self.settings.model_name))
+        self.model_memory_var = tk.StringVar(
+            value=(
+                "RAM now: No speech model is loaded. Choosing a quality does not "
+                "download or load it."
+            )
+        )
         self.recording_var = tk.StringVar(value="WAV not started")
         self.download_progress_value = tk.DoubleVar(value=0.0)
         self.download_progress_text_var = tk.StringVar(value="")
@@ -1047,7 +1053,16 @@ class _ModernBaseApp(_Controller):
             justify="left",
             wraplength=880,
             font=ctk.CTkFont(family=self.font_family, size=11, weight="bold"),
-        ).grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 12))
+        ).grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 6))
+        ctk.CTkLabel(
+            choose_card,
+            textvariable=self.model_memory_var,
+            text_color=COLORS["text_secondary"],
+            anchor="w",
+            justify="left",
+            wraplength=880,
+            font=ctk.CTkFont(family=self.font_family, size=11),
+        ).grid(row=4, column=0, sticky="ew", padx=20, pady=(0, 10))
         self.download_model_button = ctk.CTkButton(
             choose_card,
             text="Download Selected Quality",
@@ -1060,7 +1075,7 @@ class _ModernBaseApp(_Controller):
             font=ctk.CTkFont(family=self.font_family, size=13, weight="bold"),
         )
         model_buttons = ctk.CTkFrame(choose_card, fg_color="transparent")
-        model_buttons.grid(row=4, column=0, sticky="w", padx=20, pady=(0, 20))
+        model_buttons.grid(row=5, column=0, sticky="w", padx=20, pady=(0, 18))
         self.download_model_button.grid(
             in_=model_buttons,
             row=0,
@@ -1071,7 +1086,7 @@ class _ModernBaseApp(_Controller):
         )
         self.release_model_button = ctk.CTkButton(
             model_buttons,
-            text="Release Model from RAM",
+            text="No Model Loaded in RAM",
             command=self._release_model_from_ram_requested,
             height=42,
             corner_radius=9,
@@ -1079,7 +1094,8 @@ class _ModernBaseApp(_Controller):
             hover_color=COLORS["surface_raised"],
             border_color=COLORS["border"],
             border_width=1,
-            text_color=COLORS["text"],
+            text_color=COLORS["muted"],
+            state="disabled",
         )
         self.release_model_button.grid(row=0, column=1, sticky="w")
 
@@ -1752,6 +1768,42 @@ class _ModernBaseApp(_Controller):
         settings.hardware_check_version = self.settings.hardware_check_version
         return settings
 
+    def _update_model_memory_ui(self) -> None:
+        """Keep RAM controls separate from downloaded-file status."""
+        engine = self.engine
+        loaded = bool(engine is not None and engine.is_loaded)
+        busy = bool(
+            self.session is not None
+            or self.model_loading
+            or self.model_downloading
+            or self.finalizing
+        )
+
+        if loaded:
+            friendly = model_friendly_name(engine.model_name)
+            self.model_memory_var.set(
+                f"RAM now: {friendly} is loaded for transcription. Releasing it "
+                "frees working memory only; downloaded model files stay on disk."
+            )
+            if hasattr(self, "release_model_button"):
+                self.release_model_button.configure(
+                    text="Release Loaded Model from RAM",
+                    state="disabled" if busy else "normal",
+                    text_color=COLORS["text"],
+                )
+            return
+
+        self.model_memory_var.set(
+            "RAM now: No speech model is loaded. Choosing a quality does not "
+            "download or load it."
+        )
+        if hasattr(self, "release_model_button"):
+            self.release_model_button.configure(
+                text="No Model Loaded in RAM",
+                state="disabled",
+                text_color=COLORS["muted"],
+            )
+
     def _release_model_from_ram_requested(self) -> None:
         if (
             self.session is not None
@@ -1766,15 +1818,21 @@ class _ModernBaseApp(_Controller):
             )
             return
         self._cancel_engine_release()
-        if self.engine is None:
-            self.activity_var.set("No speech model is currently loaded in RAM.")
+        if self.engine is None or not self.engine.is_loaded:
+            self.activity_var.set(
+                "No speech model is currently loaded in RAM. "
+                "Downloaded-file status is shown separately."
+            )
+            self._update_model_memory_ui()
             return
+        released_name = model_friendly_name(self.engine.model_name)
         self.engine.unload()
         self.engine = None
         self.activity_var.set(
-            "The speech model was released from RAM. Downloaded model files "
-            "remain in the portable folder."
+            f"{released_name} was released from RAM. Downloaded model files "
+            "remain on disk for offline use."
         )
+        self._update_model_memory_ui()
         self._set_controls_for_idle()
 
     def _set_settings_state(self, state: str) -> None:
@@ -1816,10 +1874,14 @@ class _ModernBaseApp(_Controller):
         if hasattr(self, "recheck_pc_button"):
             self.recheck_pc_button.configure(state=enabled)
         if hasattr(self, "release_model_button"):
-            self.release_model_button.configure(state=enabled)
+            if enabled == "normal":
+                self._update_model_memory_ui()
+            else:
+                self.release_model_button.configure(state="disabled")
 
     def _set_controls_for_idle(self) -> None:
         super()._set_controls_for_idle()
+        self._update_model_memory_ui()
         model_name = self._selected_model_name()
         if not model_name:
             self.start_button.configure(

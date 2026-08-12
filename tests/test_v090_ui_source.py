@@ -10,7 +10,8 @@ def test_settings_expose_smart_vad_and_memory_saver() -> None:
     ).read_text(encoding="utf-8")
     assert "Smart Silero speech detection" in ui
     assert "Memory Saver" in ui
-    assert "Release Model from RAM" in ui
+    assert "Release Loaded Model from RAM" in ui
+    assert "No Model Loaded in RAM" in ui
 
 
 def test_engine_is_reused_instead_of_loaded_twice() -> None:
