@@ -14,7 +14,8 @@ def test_inactive_input_and_output_devices_are_filtered() -> None:
 
     assert "list_available_microphones()" in base
     assert "Inactive, disconnected, generic, and duplicate inputs are hidden." in base
-    assert "if output.available" in productivity
+    assert "list_available_audio_outputs()" in productivity
+    assert "Disconnected, generic, and duplicate playback devices are hidden." in productivity
 
 
 def test_all_main_modern_dropdowns_use_whole_click_widget() -> None:

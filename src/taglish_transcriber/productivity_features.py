@@ -14,7 +14,7 @@ import customtkinter as ctk
 from .audio import (
     AudioInputMonitor,
     detect_default_audio_output_label,
-    list_audio_outputs,
+    list_available_audio_outputs,
     recover_rolling_recording,
 )
 from .caption_window import FloatingCaptionWindow
@@ -215,12 +215,12 @@ class ProductivityFeaturesMixin:
                 weight="bold",
             ),
         ).grid(row=0, column=0, sticky="w", padx=10, pady=(7, 3))
+        self.microphone_monitor_source_var = tk.StringVar(
+            value="Source: selected microphone"
+        )
         ctk.CTkLabel(
             self.microphone_monitor_frame,
-            text=(
-                "Hear this microphone through the selected output. "
-                "Use headphones to prevent echo or feedback."
-            ),
+            textvariable=self.microphone_monitor_source_var,
             wraplength=720,
             justify="left",
             anchor="w",
@@ -766,7 +766,10 @@ class ProductivityFeaturesMixin:
 
     def _on_microphone_listen_toggle(self) -> None:
         enabled = bool(self.microphone_listen_var.get())
-        if self.audio_source_var.get() != AUDIO_SOURCE_MICROPHONE:
+        if self.audio_source_var.get() not in {
+            AUDIO_SOURCE_MICROPHONE,
+            AUDIO_SOURCE_CONVERSATION,
+        }:
             self.microphone_listen_var.set(False)
             return
 
@@ -824,12 +827,18 @@ class ProductivityFeaturesMixin:
         result = True
         if (
             self.session is not None
-            and self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+            and self.audio_source_var.get() in {
+                AUDIO_SOURCE_MICROPHONE,
+                AUDIO_SOURCE_CONVERSATION,
+            }
         ):
             result = self.session.set_microphone_monitor_output(selected)
         elif (
             self.input_monitor is not None
-            and self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+            and self.audio_source_var.get() in {
+                AUDIO_SOURCE_MICROPHONE,
+                AUDIO_SOURCE_CONVERSATION,
+            }
         ):
             result = self.input_monitor.set_microphone_monitor_output(selected)
 
@@ -840,7 +849,10 @@ class ProductivityFeaturesMixin:
 
         self.settings.microphone_monitor_output_label = selected
         self.settings.save()
-        self.activity_var.set(f"Microphone monitoring output: {selected}")
+        self.activity_var.set(
+            f"Microphone monitoring output: {selected}. "
+            "Disconnected, generic, and duplicate playback devices are hidden."
+        )
 
     def _restart_microphone_monitor_preview(self) -> None:
         if self.session is not None:
@@ -848,7 +860,10 @@ class ProductivityFeaturesMixin:
 
         def restart() -> None:
             if (
-                self.audio_source_var.get() == AUDIO_SOURCE_MICROPHONE
+                self.audio_source_var.get() in {
+                    AUDIO_SOURCE_MICROPHONE,
+                    AUDIO_SOURCE_CONVERSATION,
+                }
                 and self.microphone_listen_var.get()
             ):
                 self._start_input_test(
@@ -1216,12 +1231,76 @@ class ProductivityFeaturesMixin:
                     )
                 )
 
+    def _refresh_microphone_monitor_devices(self) -> None:
+        """Refresh monitor source and connected playback-output choices."""
+        source_mode = self.audio_source_var.get()
+        if source_mode not in {
+            AUDIO_SOURCE_MICROPHONE,
+            AUDIO_SOURCE_CONVERSATION,
+        }:
+            return
+
+        selected_microphone = self.microphone_var.get().strip()
+        if hasattr(self, "microphone_monitor_source_var"):
+            if (
+                selected_microphone
+                and selected_microphone != "No available microphone detected"
+            ):
+                self.microphone_monitor_source_var.set(
+                    f"Source: {selected_microphone} • "
+                    "Uses the same filtered microphone selected above. "
+                    "Use headphones to prevent echo or feedback."
+                )
+            else:
+                self.microphone_monitor_source_var.set(
+                    "Source: No usable microphone selected."
+                )
+
+        outputs = list_available_audio_outputs()
+        output_labels = [output.label for output in outputs]
+        disabled_outputs: list[str] = []
+
+        if not output_labels:
+            output_labels = ["No available playback device detected"]
+            disabled_outputs = list(output_labels)
+
+        selected_output = self.microphone_monitor_output_var.get()
+        if (
+            selected_output not in output_labels
+            or selected_output in disabled_outputs
+        ):
+            selected_output = (
+                detect_default_audio_output_label()
+                if not disabled_outputs
+                else output_labels[0]
+            )
+            if (
+                selected_output not in output_labels
+                or selected_output in disabled_outputs
+            ):
+                selected_output = next(
+                    (
+                        label
+                        for label in output_labels
+                        if label not in disabled_outputs
+                    ),
+                    output_labels[0],
+                )
+
+        self.microphone_monitor_output_var.set(selected_output)
+        self.settings.microphone_monitor_output_label = selected_output
+        self.microphone_monitor_output_dropdown.configure(
+            values=output_labels,
+            disabled_values=disabled_outputs,
+        )
+
     def _refresh_audio_inputs(self, *, auto_select: bool) -> None:
         super()._refresh_audio_inputs(auto_select=auto_select)
         if not hasattr(self, "application_audio_dropdown"):
             return
 
         source_mode = self.audio_source_var.get()
+        self._refresh_microphone_monitor_devices()
         if source_mode in {AUDIO_SOURCE_APPLICATION, AUDIO_SOURCE_CONVERSATION}:
             from .application_audio import (
                 application_audio_support,
@@ -1262,34 +1341,6 @@ class ProductivityFeaturesMixin:
                 self.conversation_labels_frame.grid_remove()
                 self.microphone_monitor_frame.grid_remove()
         elif source_mode == AUDIO_SOURCE_MICROPHONE:
-            outputs = [
-                output
-                for output in list_audio_outputs()
-                if output.available
-            ]
-            output_labels = [output.label for output in outputs]
-            disabled_outputs = []
-            available_outputs = list(output_labels)
-            if not output_labels:
-                output_labels = ["No available playback device detected"]
-                disabled_outputs = list(output_labels)
-                available_outputs = []
-            selected_output = self.microphone_monitor_output_var.get()
-            if (
-                selected_output not in output_labels
-                or selected_output in disabled_outputs
-            ):
-                selected_output = (
-                    detect_default_audio_output_label()
-                    if available_outputs
-                    else output_labels[0]
-                )
-            self.microphone_monitor_output_var.set(selected_output)
-            self.settings.microphone_monitor_output_label = selected_output
-            self.microphone_monitor_output_dropdown.configure(
-                values=output_labels,
-                disabled_values=disabled_outputs,
-            )
             self.microphone_monitor_frame.grid()
             self.application_audio_frame.grid_remove()
             self.conversation_labels_frame.grid_remove()

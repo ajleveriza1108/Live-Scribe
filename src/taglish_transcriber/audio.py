@@ -54,6 +54,12 @@ WINDOWS_HOST_API_PRIORITY = (
     "mme",
 )
 
+WINDOWS_AUDIO_OUTPUT_ALIAS_HINTS = (
+    "microsoft sound mapper",
+    "primary sound driver",
+    "default output",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class MicrophoneInfo:
@@ -82,6 +88,7 @@ class AudioOutputInfo:
     is_default: bool = False
     available: bool = True
     unavailable_reason: str = ""
+    host_api_name: str = ""
 
     @property
     def label(self) -> str:
@@ -417,6 +424,152 @@ def _probe_audio_output(
         return False, message or "The playback device cannot currently be opened."
 
 
+def _looks_like_windows_audio_output_alias(name: str) -> bool:
+    normalized = name.casefold()
+    return any(hint in normalized for hint in WINDOWS_AUDIO_OUTPUT_ALIAS_HINTS)
+
+
+def _connected_windows_speaker_keys() -> tuple[set[str], str]:
+    """Return connected native Windows playback endpoint names."""
+    if sys.platform != "win32":
+        return set(), ""
+
+    try:
+        import soundcard as sc
+    except Exception:
+        return set(), ""
+
+    connected: set[str] = set()
+    default_key = ""
+
+    try:
+        speakers = sc.all_speakers()
+    except Exception:
+        speakers = []
+
+    for speaker in speakers:
+        name = str(getattr(speaker, "name", "") or "").strip()
+        key = _microphone_name_key(name)
+        if key:
+            connected.add(key)
+
+    try:
+        default_speaker = sc.default_speaker()
+        default_key = _microphone_name_key(
+            str(getattr(default_speaker, "name", "") or "")
+        )
+    except Exception:
+        default_key = ""
+
+    return connected, default_key
+
+
+def _audio_output_matches_connected_key(
+    output: AudioOutputInfo,
+    connected_keys: set[str],
+) -> bool:
+    if not connected_keys:
+        return True
+
+    key = _microphone_name_key(output.name)
+    if not key:
+        return False
+    if key in connected_keys:
+        return True
+
+    if len(key) >= 12:
+        for connected in connected_keys:
+            if len(connected) >= 12 and (key in connected or connected in key):
+                return True
+    return False
+
+
+def _deduplicate_audio_outputs(
+    outputs: list[AudioOutputInfo],
+    *,
+    native_default_key: str = "",
+) -> list[AudioOutputInfo]:
+    """Collapse duplicate PortAudio playback rows into one user-facing output."""
+    groups: dict[str, list[AudioOutputInfo]] = {}
+    for output in outputs:
+        key = _microphone_name_key(output.name)
+        if not key:
+            key = f"output-{output.index}"
+        groups.setdefault(key, []).append(output)
+
+    result: list[AudioOutputInfo] = []
+    for key, group in groups.items():
+        chosen = min(
+            group,
+            key=lambda item: (
+                not item.available,
+                _host_api_priority(item.host_api_name)
+                if sys.platform == "win32"
+                else 0,
+                item.index,
+            ),
+        )
+        default_here = (
+            any(item.is_default for item in group)
+            or bool(native_default_key and key == native_default_key)
+        )
+        if default_here != chosen.is_default:
+            chosen = AudioOutputInfo(
+                index=chosen.index,
+                name=chosen.name,
+                sample_rate=chosen.sample_rate,
+                max_output_channels=chosen.max_output_channels,
+                is_default=default_here,
+                available=chosen.available,
+                unavailable_reason=chosen.unavailable_reason,
+                host_api_name=chosen.host_api_name,
+            )
+        result.append(chosen)
+
+    result.sort(
+        key=lambda item: (
+            not item.is_default,
+            not item.available,
+            item.name.casefold(),
+            item.index,
+        )
+    )
+    return result
+
+
+def list_available_audio_outputs() -> list[AudioOutputInfo]:
+    """Return the short user-facing playback-device list for mic monitoring."""
+    outputs = [item for item in list_audio_outputs() if item.available]
+    if not outputs:
+        return []
+
+    native_default_key = ""
+    if sys.platform == "win32":
+        connected_keys, native_default_key = _connected_windows_speaker_keys()
+
+        non_aliases = [
+            item
+            for item in outputs
+            if not _looks_like_windows_audio_output_alias(item.name)
+        ]
+        if non_aliases:
+            outputs = non_aliases
+
+        if connected_keys:
+            matched = [
+                item
+                for item in outputs
+                if _audio_output_matches_connected_key(item, connected_keys)
+            ]
+            if matched:
+                outputs = matched
+
+    return _deduplicate_audio_outputs(
+        outputs,
+        native_default_key=native_default_key,
+    )
+
+
 def list_audio_outputs() -> list[AudioOutputInfo]:
     try:
         import sounddevice as sd
@@ -425,6 +578,10 @@ def list_audio_outputs() -> list[AudioOutputInfo]:
 
     default_index = _default_output_index(sd)
     devices = sd.query_devices()
+    try:
+        host_apis = sd.query_hostapis()
+    except Exception:
+        host_apis = ()
     outputs: list[AudioOutputInfo] = []
 
     for index, device in enumerate(devices):
@@ -438,6 +595,13 @@ def list_audio_outputs() -> list[AudioOutputInfo]:
             sample_rate,
             channels,
         )
+        host_api_name = ""
+        try:
+            host_api_index = int(device.get("hostapi", -1))
+            if 0 <= host_api_index < len(host_apis):
+                host_api_name = str(host_apis[host_api_index].get("name", ""))
+        except Exception:
+            host_api_name = ""
         outputs.append(
             AudioOutputInfo(
                 index=index,
@@ -447,6 +611,7 @@ def list_audio_outputs() -> list[AudioOutputInfo]:
                 is_default=index == default_index,
                 available=available,
                 unavailable_reason=reason,
+                host_api_name=host_api_name,
             )
         )
 
@@ -461,7 +626,7 @@ def list_audio_outputs() -> list[AudioOutputInfo]:
 
 
 def detect_default_audio_output_label() -> str:
-    outputs = list_audio_outputs()
+    outputs = list_available_audio_outputs()
     for output in outputs:
         if output.is_default and output.available:
             return output.label
